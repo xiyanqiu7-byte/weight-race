@@ -1,0 +1,357 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { PixelAvatar } from "@/components/PixelAvatar";
+import { ProgressBar } from "@/components/ProgressBar";
+import { useCouple } from "@/hooks/useCouple";
+import { api } from "@/lib/api";
+import {
+  daysSince,
+  getOthers,
+  hasBuff,
+  hasDebuff,
+  latestWeight,
+  milestonesReached,
+  profileLost,
+} from "@/lib/stats";
+import { formatWeight, progressRatio, todayISO } from "@/lib/units";
+import { POKE_EMOJIS, SLOT_META, type Profile } from "@/lib/types";
+
+export default function BattlePage() {
+  const { session, bundle, unit, refresh, loading, error, logout } = useCouple();
+  const [pokeOpen, setPokeOpen] = useState(false);
+  const [pokeTarget, setPokeTarget] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const today = todayISO();
+
+  const view = useMemo(() => {
+    if (!session || !bundle) return null;
+    const me = bundle.profiles.find((p) => p.id === session.profileId);
+    if (!me) return null;
+
+    const others = getOthers(bundle, session.profileId);
+    const ranked = [...bundle.profiles]
+      .map((p) => ({
+        profile: p,
+        lost: profileLost(p, bundle.weighIns),
+        current: latestWeight(bundle.weighIns, p.id),
+      }))
+      .sort((a, b) => b.lost - a.lost);
+
+    const meLost = profileLost(me, bundle.weighIns);
+    const leader = ranked[0];
+    const myRank = ranked.findIndex((r) => r.profile.id === me.id) + 1;
+
+    return {
+      me,
+      others,
+      ranked,
+      meLost,
+      meCurrent: latestWeight(bundle.weighIns, me.id),
+      meGoalWeight:
+        me.start_weight_kg != null ? me.start_weight_kg - me.goal_kg : null,
+      meProgress: progressRatio(me.start_weight_kg, latestWeight(bundle.weighIns, me.id), me.goal_kg),
+      meBuff: hasBuff(bundle.workouts, me.id, today),
+      meDebuff: hasDebuff(bundle.mealLogs, me.id, today),
+      days: daysSince(me.start_date),
+      badges: milestonesReached(meLost),
+      recentPoke: bundle.pokes[0] ?? null,
+      myRank,
+      leaderName: leader?.profile.nickname ?? me.nickname,
+      total: bundle.profiles.length,
+    };
+  }, [session, bundle, today]);
+
+  async function sendPoke(emoji: string, toId: string) {
+    if (!session) return;
+    setSending(true);
+    try {
+      await api.sendPoke(session.coupleId, session.profileId, toId, emoji);
+      await refresh();
+      setPokeOpen(false);
+      setPokeTarget(null);
+      setToast(`已发送 ${emoji}`);
+      setTimeout(() => setToast(null), 1800);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "发送失败");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function onPickEmoji(emoji: string) {
+    if (!view) return;
+    if (view.others.length === 0) {
+      setToast("等好友加入同一暗号房间后，才能挑衅");
+      return;
+    }
+    if (view.others.length === 1) {
+      void sendPoke(emoji, view.others[0].id);
+      return;
+    }
+    if (!pokeTarget) {
+      setToast("先点选要挑衅的好友");
+      return;
+    }
+    void sendPoke(emoji, pokeTarget);
+  }
+
+  if (loading) {
+    return (
+      <main className="flex flex-1 items-center justify-center text-sm text-muted">
+        加载对战画面…
+      </main>
+    );
+  }
+
+  if (!session || !view) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-[15px] font-semibold text-ink">进不去这个房间</p>
+        <p className="text-[13px] text-muted">
+          {error ||
+            "多半是以前本地试用的登录还在。请重新选头像、输入暗号进入。"}
+        </p>
+        <button
+          type="button"
+          className="pixel-btn pixel-btn-primary px-6 py-3"
+          onClick={() => {
+            logout();
+            window.location.href = "/enter";
+          }}
+        >
+          重新进入
+        </button>
+      </main>
+    );
+  }
+
+  const lead =
+    view.total <= 1
+      ? "把暗号发给好友，一起开打"
+      : view.myRank === 1
+        ? "你目前领先，稳住节奏"
+        : `当前第 ${view.myRank} 名 · 领先的是 ${view.leaderName}`;
+
+  return (
+    <main className="flex flex-1 flex-col gap-4 px-4 py-5">
+      <header className="px-1">
+        <h1 className="text-[28px] font-bold tracking-tight">
+          Hi, {view.me.nickname}!
+        </h1>
+        <p className="mt-1 text-[13px] text-muted">
+          第 {view.days || 1} 天 · 房间 {view.total} 人 · {lead}
+        </p>
+      </header>
+
+      <section className="card-taupe relative overflow-hidden px-4 py-6">
+        <div
+          className="pointer-events-none absolute -left-6 top-2 h-36 w-36 rounded-full opacity-80 blur-2xl"
+          style={{ background: SLOT_META.a.color }}
+        />
+        <div
+          className="pointer-events-none absolute -right-4 bottom-0 h-40 w-40 rounded-full opacity-70 blur-2xl"
+          style={{ background: SLOT_META.b.color }}
+        />
+        <div className="relative flex flex-wrap items-end justify-center gap-5">
+          <PlayerChip
+            profile={view.me}
+            buff={view.meBuff}
+            debuff={view.meDebuff}
+            pokeEmoji={
+              view.recentPoke?.from_profile_id === view.me.id
+                ? view.recentPoke.emoji
+                : null
+            }
+          />
+          {view.others.length === 0 ? (
+            <div className="flex h-[120px] w-[96px] flex-col items-center justify-center text-[11px] text-muted">
+              <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-white/70 text-lg font-bold text-ink">
+                ?
+              </div>
+              等待加入
+            </div>
+          ) : (
+            view.others.map((p) => (
+              <PlayerChip
+                key={p.id}
+                profile={p}
+                buff={hasBuff(bundle!.workouts, p.id, today)}
+                debuff={hasDebuff(bundle!.mealLogs, p.id, today)}
+                pokeEmoji={
+                  view.recentPoke?.from_profile_id === p.id
+                    ? view.recentPoke.emoji
+                    : null
+                }
+              />
+            ))
+          )}
+        </div>
+      </section>
+
+      {view.ranked.map(({ profile, lost, current }) => {
+        const goalWeight =
+          profile.start_weight_kg != null
+            ? profile.start_weight_kg - profile.goal_kg
+            : null;
+        return (
+          <ProgressBar
+            key={profile.id}
+            value={progressRatio(
+              profile.start_weight_kg,
+              current,
+              profile.goal_kg,
+            )}
+            color={SLOT_META[profile.slot].color}
+            label={`${profile.nickname}${profile.id === view.me.id ? "（我）" : ""} 的减重计划`}
+            sublabel={`已减 ${formatWeight(lost, unit)} / 目标 ${profile.goal_kg} kg`}
+            currentLabel={
+              current != null ? formatWeight(current, unit) : undefined
+            }
+            startLabel={
+              profile.start_weight_kg != null
+                ? formatWeight(profile.start_weight_kg, unit)
+                : "起点"
+            }
+            goalLabel={
+              goalWeight != null ? formatWeight(goalWeight, unit) : "目标"
+            }
+          />
+        );
+      })}
+
+      {view.badges.length > 0 && (
+        <section className="flex flex-wrap gap-2 px-1">
+          {view.badges.map((b) => (
+            <span
+              key={b}
+              className="rounded-full bg-moss px-3 py-1.5 text-[11px] font-semibold text-ink"
+            >
+              达成 {b} kg
+            </span>
+          ))}
+        </section>
+      )}
+
+      <div
+        className="poke-flip"
+        data-open={pokeOpen ? "true" : "false"}
+        style={{
+          minHeight: pokeOpen
+            ? view.others.length > 1
+              ? 148
+              : 104
+            : undefined,
+        }}
+      >
+        <div
+          className="poke-flip-inner"
+          style={{
+            minHeight: pokeOpen
+              ? view.others.length > 1
+                ? 148
+                : 104
+              : 52,
+          }}
+        >
+          <div className="poke-flip-face poke-flip-front">
+            <button
+              type="button"
+              className="pixel-btn pixel-btn-primary w-full py-3.5 text-[14px]"
+              onClick={() => {
+                setPokeOpen(true);
+                setPokeTarget(null);
+              }}
+            >
+              挑衅好友
+            </button>
+          </div>
+
+          <div className="poke-flip-face poke-flip-back">
+            <div className="flex h-full flex-col justify-center gap-2 rounded-[28px] bg-sand px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-muted">
+                  {view.others.length > 1
+                    ? pokeTarget
+                      ? "选个表情发出去"
+                      : "先选要挑衅谁"
+                    : "选个表情发出去"}
+                </p>
+                <button
+                  type="button"
+                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-muted"
+                  onClick={() => {
+                    setPokeOpen(false);
+                    setPokeTarget(null);
+                  }}
+                >
+                  收回
+                </button>
+              </div>
+              {view.others.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {view.others.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        pokeTarget === p.id
+                          ? "bg-ink text-white"
+                          : "bg-white text-ink"
+                      }`}
+                      onClick={() => setPokeTarget(p.id)}
+                    >
+                      {p.nickname}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-6 gap-1.5">
+                {POKE_EMOJIS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    className="pixel-btn aspect-square bg-white text-lg"
+                    disabled={sending}
+                    onClick={() => onPickEmoji(e)}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {toast && (
+        <div className="fixed bottom-28 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-[12px] font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+    </main>
+  );
+}
+
+function PlayerChip({
+  profile,
+  buff,
+  debuff,
+  pokeEmoji,
+}: {
+  profile: Profile;
+  buff: boolean;
+  debuff: boolean;
+  pokeEmoji?: string | null;
+}) {
+  return (
+    <PixelAvatar
+      slot={profile.slot}
+      nickname={profile.nickname}
+      buff={buff}
+      debuff={debuff}
+      pokeEmoji={pokeEmoji}
+      size={96}
+    />
+  );
+}

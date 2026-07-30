@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f5f3ef;
+  --cream: #ffffff;
+  --ink: #1a1a1a;
+  --moss: #ffd541;
+  --brick: #ff8b7b;
+  --sand: #ebe6df;
+  --taupe: #e8e2d8;
+  --line: #e6e1d9;
+  --muted: #9a9590;
+  --good: #2f9d6a;
+  --bad: #ff8b7b;
+  --shadow: rgba(26, 26, 26, 0.07);
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --radius-card: 28px;
+  --radius-btn: 999px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+  --color-moss: var(--moss);
+  --color-brick: var(--brick);
+  --color-sand: var(--sand);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-taupe: var(--taupe);
+  --font-sans: var(--font-hei), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+.pixel-border {
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--cream);
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.pixel-border-inset {
+  border: none;
+  border-radius: 20px;
+  background: var(--sand);
+  box-shadow: none;
+}
+
+.pixel-btn {
+  border: none;
+  border-radius: var(--radius-btn);
+  box-shadow: none;
+  background: var(--sand);
+  color: var(--ink);
+  transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.pixel-btn:hover:not(:disabled) {
+  background: #e0dbd3;
+}
+
+.pixel-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.pixel-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pixel-btn-primary {
+  background: var(--ink);
+  color: #fff;
+}
+
+.pixel-btn-primary:hover:not(:disabled) {
+  background: #2c2c2c;
+}
+
+.pixel-btn-accent {
+  background: var(--moss);
+  color: var(--ink);
+}
+
+.pixel-btn-accent:hover:not(:disabled) {
+  background: #f0c62f;
+}
+
+.card-soft {
+  border-radius: var(--radius-card);
+  background: var(--cream);
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.card-taupe {
+  border-radius: var(--radius-card);
+  background: var(--taupe);
+  box-shadow: none;
+}
+
+.card-dark {
+  border-radius: var(--radius-card);
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(26, 26, 26, 0.18);
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pop-in {
+  animation: pop-in 220ms ease-out;
+}
+
+/* 挑衅按钮原地翻转 */
+.poke-flip {
+  perspective: 900px;
+}
+
+.poke-flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    min-height 280ms ease;
+}
+
+.poke-flip[data-open="true"] .poke-flip-inner {
+  transform: rotateX(180deg);
+}
+
+.poke-flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.poke-flip-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.poke-flip[data-open="false"] .poke-flip-back {
+  pointer-events: none;
+}
+
+.poke-flip[data-open="true"] .poke-flip-front {
+  pointer-events: none;
+}
+
+.safe-bottom {
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+.app-shell {
+  min-height: 100dvh;
+  max-width: 430px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--bg);
+}
