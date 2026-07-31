@@ -1,19 +1,13 @@
-import type { Profile } from "./types";
+import { SLOT_META, SLOT_OPTIONS, type Profile } from "./types";
 
 /**
- * 折线 / 进度条用色：按房间内选手稳定排序后分配，互不重复。
- * 配色贴合现有品牌（黄 / 珊瑚 / 墨绿 / 墨色系），避开紫系。
+ * 折线 / 进度条用色：取自四个头像本身的主色 + 底色，
+ * 按房间内选手稳定排序后轮流分配，互不重复。
  */
-export const PLAYER_PALETTE = [
-  "#ffd541", // moss 黄
-  "#ff8b7b", // brick 珊瑚
-  "#2f9d6a", // good 绿
-  "#1a1a1a", // ink
-  "#e8a23a", // 暖橙
-  "#5b8c7a", // 灰绿
-  "#d9654a", // 深珊瑚
-  "#6b635a", // 暖灰褐
-] as const;
+export const PLAYER_PALETTE: readonly string[] = [
+  ...SLOT_OPTIONS.map((s) => SLOT_META[s].avatarBg),
+  ...SLOT_OPTIONS.map((s) => SLOT_META[s].color),
+];
 
 /** 同一房间内按 id 排序，保证颜色稳定且互异 */
 export function playerColorIndex(

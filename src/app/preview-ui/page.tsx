@@ -90,9 +90,6 @@ export default function PreviewUiPage() {
                     style={{ background: playerColor(profiles, p.id) }}
                   />
                   {p.nickname}
-                  {p.slot === profiles[0]?.slot && p.id !== profiles[0]?.id
-                    ? "（同头像）"
-                    : ""}
                 </span>
               ))}
             </div>
@@ -118,7 +115,7 @@ export default function PreviewUiPage() {
       })}
 
       <section className="card-soft p-4">
-        <p className="mb-2 text-[13px] font-bold">选手色板（品牌向）</p>
+        <p className="mb-2 text-[13px] font-bold">选手色板（取自头像）</p>
         <div className="flex flex-wrap gap-2">
           {PLAYER_PALETTE.map((c) => (
             <span
