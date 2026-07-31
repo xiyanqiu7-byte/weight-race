@@ -25,7 +25,6 @@ import { POKE_EMOJIS, SLOT_META, type Profile } from "@/lib/types";
 export default function BattlePage() {
   const { session, bundle, unit, refresh, loading, error, logout } = useCouple();
   const [pokeOpen, setPokeOpen] = useState(false);
-  const [pokeTarget, setPokeTarget] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const today = todayISO();
@@ -48,6 +47,14 @@ export default function BattlePage() {
     const leader = ranked[0];
     const myRank = ranked.findIndex((r) => r.profile.id === me.id) + 1;
 
+    // 每人保留自己发出的最新挑衅表情（互不顶掉）
+    const pokeEmojiBySender = new Map<string, string>();
+    for (const poke of bundle.pokes) {
+      if (!pokeEmojiBySender.has(poke.from_profile_id)) {
+        pokeEmojiBySender.set(poke.from_profile_id, poke.emoji);
+      }
+    }
+
     return {
       me,
       others,
@@ -56,50 +63,46 @@ export default function BattlePage() {
       meCurrent: latestWeight(bundle.weighIns, me.id),
       meGoalWeight:
         me.start_weight_kg != null ? me.start_weight_kg - me.goal_kg : null,
-      meProgress: progressRatio(me.start_weight_kg, latestWeight(bundle.weighIns, me.id), me.goal_kg),
+      meProgress: progressRatio(
+        me.start_weight_kg,
+        latestWeight(bundle.weighIns, me.id),
+        me.goal_kg,
+      ),
       meBuff: hasBuff(bundle.workouts, me.id, today),
       meDebuff: hasDebuff(bundle.mealLogs, me.id, today),
       days: daysSince(me.start_date),
       badges: milestonesReached(meLost),
-      recentPoke: bundle.pokes[0] ?? null,
+      pokeEmojiBySender,
       myRank,
       leaderName: leader?.profile.nickname ?? me.nickname,
       total: bundle.profiles.length,
     };
   }, [session, bundle, today]);
 
-  async function sendPoke(emoji: string, toId: string) {
-    if (!session) return;
+  async function sendPoke(emoji: string) {
+    if (!session || !view) return;
+    if (view.others.length === 0) {
+      setToast("等好友加入同一暗号房间后，才能挑衅");
+      return;
+    }
     setSending(true);
     try {
-      await api.sendPoke(session.coupleId, session.profileId, toId, emoji);
+      // 表情挂在自己头上；to 仅作记录，默认发给房间里第一位好友
+      await api.sendPoke(
+        session.coupleId,
+        session.profileId,
+        view.others[0].id,
+        emoji,
+      );
       await refresh();
       setPokeOpen(false);
-      setPokeTarget(null);
-      setToast(`已发送 ${emoji}`);
+      setToast(`已挂上 ${emoji}`);
       setTimeout(() => setToast(null), 1800);
     } catch (e) {
       setToast(e instanceof Error ? e.message : "发送失败");
     } finally {
       setSending(false);
     }
-  }
-
-  function onPickEmoji(emoji: string) {
-    if (!view) return;
-    if (view.others.length === 0) {
-      setToast("等好友加入同一暗号房间后，才能挑衅");
-      return;
-    }
-    if (view.others.length === 1) {
-      void sendPoke(emoji, view.others[0].id);
-      return;
-    }
-    if (!pokeTarget) {
-      setToast("先点选要挑衅的好友");
-      return;
-    }
-    void sendPoke(emoji, pokeTarget);
   }
 
   if (loading) {
@@ -184,11 +187,7 @@ export default function BattlePage() {
                 size={avatarSize}
                 buff={view.meBuff}
                 debuff={view.meDebuff}
-                pokeEmoji={
-                  view.recentPoke?.from_profile_id === view.me.id
-                    ? view.recentPoke.emoji
-                    : null
-                }
+                pokeEmoji={view.pokeEmojiBySender.get(view.me.id) ?? null}
               />
               {view.others.length === 0 ? (
                 <div
@@ -219,11 +218,7 @@ export default function BattlePage() {
                     size={avatarSize}
                     buff={hasBuff(bundle!.workouts, p.id, today)}
                     debuff={hasDebuff(bundle!.mealLogs, p.id, today)}
-                    pokeEmoji={
-                      view.recentPoke?.from_profile_id === p.id
-                        ? view.recentPoke.emoji
-                        : null
-                    }
+                    pokeEmoji={view.pokeEmojiBySender.get(p.id) ?? null}
                   />
                 ))
               )}
@@ -279,34 +274,19 @@ export default function BattlePage() {
       <div
         className="poke-flip"
         data-open={pokeOpen ? "true" : "false"}
-        style={{
-          minHeight: pokeOpen
-            ? view.others.length > 1
-              ? 148
-              : 104
-            : undefined,
-        }}
+        style={{ minHeight: pokeOpen ? 104 : undefined }}
       >
         <div
           className="poke-flip-inner"
-          style={{
-            minHeight: pokeOpen
-              ? view.others.length > 1
-                ? 148
-                : 104
-              : 52,
-          }}
+          style={{ minHeight: pokeOpen ? 104 : 52 }}
         >
           <div className="poke-flip-face poke-flip-front">
             <button
               type="button"
               className="pixel-btn pixel-btn-primary w-full py-3.5 text-[14px]"
-              onClick={() => {
-                setPokeOpen(true);
-                setPokeTarget(null);
-              }}
+              onClick={() => setPokeOpen(true)}
             >
-              挑衅好友
+              挑衅一下
             </button>
           </div>
 
@@ -314,41 +294,16 @@ export default function BattlePage() {
             <div className="flex h-full flex-col justify-center gap-2 rounded-[28px] bg-sand px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold text-muted">
-                  {view.others.length > 1
-                    ? pokeTarget
-                      ? "选个表情发出去"
-                      : "先选要挑衅谁"
-                    : "选个表情发出去"}
+                  选个表情挂在自己头上
                 </p>
                 <button
                   type="button"
                   className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-muted"
-                  onClick={() => {
-                    setPokeOpen(false);
-                    setPokeTarget(null);
-                  }}
+                  onClick={() => setPokeOpen(false)}
                 >
                   收回
                 </button>
               </div>
-              {view.others.length > 1 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {view.others.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        pokeTarget === p.id
-                          ? "bg-ink text-white"
-                          : "bg-white text-ink"
-                      }`}
-                      onClick={() => setPokeTarget(p.id)}
-                    >
-                      {p.nickname}
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="grid grid-cols-6 gap-1.5">
                 {POKE_EMOJIS.map((e) => (
                   <button
@@ -356,7 +311,7 @@ export default function BattlePage() {
                     type="button"
                     className="pixel-btn aspect-square bg-white text-lg"
                     disabled={sending}
-                    onClick={() => onPickEmoji(e)}
+                    onClick={() => void sendPoke(e)}
                   >
                     {e}
                   </button>

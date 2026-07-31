@@ -11,18 +11,25 @@ export default function TrendsPage() {
   const chart = useMemo(() => {
     if (!bundle) return null;
     const profiles = [...bundle.profiles].sort((a, b) =>
-      a.slot.localeCompare(b.slot),
+      a.id.localeCompare(b.id),
     );
     const dates = Array.from(
       new Set(bundle.weighIns.map((w) => w.logged_on)),
     ).sort();
 
+    // 纵轴改为「已减重量」：大家从 0 起算，越高减得越多
     const series = profiles.map((p) => {
+      const mine = bundle.weighIns
+        .filter((w) => w.profile_id === p.id)
+        .sort((a, b) => a.logged_on.localeCompare(b.logged_on));
+      const baseline =
+        p.start_weight_kg != null ? p.start_weight_kg : (mine[0]?.weight_kg ?? null);
+
       const points = dates.map((d) => {
-        const w = bundle.weighIns.find(
-          (x) => x.profile_id === p.id && x.logged_on === d,
-        );
-        return w ? kgToDisplay(w.weight_kg, unit) : null;
+        const w = mine.find((x) => x.logged_on === d);
+        if (!w || baseline == null) return null;
+        const lostKg = baseline - w.weight_kg;
+        return kgToDisplay(lostKg, unit);
       });
       return { profile: p, points };
     });
@@ -30,8 +37,11 @@ export default function TrendsPage() {
     const allVals = series.flatMap((s) =>
       s.points.filter((v): v is number => v != null),
     );
-    const min = allVals.length ? Math.min(...allVals) - 1 : 0;
-    const max = allVals.length ? Math.max(...allVals) + 1 : 100;
+    const rawMin = allVals.length ? Math.min(...allVals, 0) : 0;
+    const rawMax = allVals.length ? Math.max(...allVals, 0) : 1;
+    const padY = Math.max(0.2, (rawMax - rawMin) * 0.08);
+    const min = rawMin - padY;
+    const max = rawMax + padY;
 
     return { profiles, dates, series, min, max };
   }, [bundle, unit]);
@@ -105,6 +115,7 @@ export default function TrendsPage() {
   const W = 320;
   const H = 160;
   const pad = 16;
+  const unitLabel = unit === "jin" ? "斤" : "kg";
 
   function xAt(i: number, n: number) {
     if (n <= 1) return W / 2;
@@ -115,11 +126,16 @@ export default function TrendsPage() {
     return H - pad - t * (H - pad * 2);
   }
 
+  const zeroY =
+    chart.min <= 0 && chart.max >= 0 ? yAt(0) : null;
+
   return (
     <main className="flex flex-1 flex-col gap-4 px-4 py-2 pb-5">
       <header className="px-1">
         <h1 className="text-[26px] font-bold tracking-tight">趋势</h1>
-        <p className="mt-1 text-[13px] text-muted">体重曲线对比 · {unit}</p>
+        <p className="mt-1 text-[13px] text-muted">
+          减重对比 · 从 0 起算 · 越高减得越多 · {unitLabel}
+        </p>
       </header>
 
       <section className="card-soft p-4">
@@ -128,10 +144,7 @@ export default function TrendsPage() {
             还没有体重数据，去「记录」页称一称吧
           </p>
         ) : (
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="h-auto w-full"
-          >
+          <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
             {[0, 0.5, 1].map((t) => {
               const y = pad + t * (H - pad * 2);
               return (
@@ -146,6 +159,17 @@ export default function TrendsPage() {
                 />
               );
             })}
+            {zeroY != null && (
+              <line
+                x1={pad}
+                x2={W - pad}
+                y1={zeroY}
+                y2={zeroY}
+                stroke="#cfc8be"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+            )}
             {chart.series.map(({ profile, points }) => {
               const color = playerColor(chart.profiles, profile.id);
               const segs: string[] = [];
@@ -201,6 +225,10 @@ export default function TrendsPage() {
             </span>
           ))}
         </div>
+        <p className="mt-2 text-[11px] text-muted">
+          虚线 = 起点 0（未减重）。例如减了 2{unitLabel} 会比减了 1{unitLabel}{" "}
+          更高。
+        </p>
       </section>
 
       <section className="card-dark p-4">

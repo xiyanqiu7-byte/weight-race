@@ -142,4 +142,4 @@ export const SLOT_META: Record<
 };
 
 export const DEFAULT_GOAL_KG = 5;
-export const POKE_EMOJIS = ["👀", "🔥", "😤", "💪", "🐔", "🧋"] as const;
+export const POKE_EMOJIS = ["👀", "🔥", "😤", "💪", "🏃", "🧋"] as const;

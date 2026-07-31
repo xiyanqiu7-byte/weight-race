@@ -121,6 +121,7 @@ select {
   background: var(--taupe);
   box-shadow: none;
   isolation: isolate;
+  overflow: hidden;
 }
 
 .card-dark {
