@@ -8,7 +8,8 @@ create table if not exists couples (
   created_at timestamptz not null default now()
 );
 
--- 选手档案（slot 仅表示头像男女，同一房间可多人同头像）
+-- 选手档案（slot = 头像 a/b/c/d，同一房间可多人同头像）
+-- 若表已存在且仍是旧 check('a','b')，请另跑 migrate-multi.sql，本文件不会改已有表
 create table if not exists profiles (
   id uuid primary key default gen_random_uuid(),
   couple_id uuid not null references couples(id) on delete cascade,

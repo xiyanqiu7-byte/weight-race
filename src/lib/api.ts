@@ -14,6 +14,51 @@ import type {
 } from "./types";
 import { DEFAULT_GOAL_KG } from "./types";
 
+type SbErrorLike = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
+/** 把 PostgREST / Postgres 错误转成可读中文（尤其是旧库未跑 migrate 时） */
+function toJoinError(err: unknown): Error {
+  const e = (err ?? {}) as SbErrorLike;
+  const blob = [e.message, e.details, e.hint, e.code]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  // 旧库 check (slot in ('a','b')) → 选头像 3/4 会踩这个
+  if (
+    blob.includes("profiles_slot_check") ||
+    (blob.includes("slot") &&
+      (blob.includes("check constraint") || blob.includes("violates check")))
+  ) {
+    return new Error(
+      "云端数据库还不支持头像 3/4。请到 Supabase → SQL Editor 执行项目里的 supabase/migrate-multi.sql，然后再试。",
+    );
+  }
+
+  // 旧库 unique(couple_id, slot)
+  if (
+    blob.includes("profiles_couple_id_slot") ||
+    (blob.includes("couple_id") &&
+      blob.includes("slot") &&
+      (blob.includes("unique") || blob.includes("duplicate") || e.code === "23505"))
+  ) {
+    return new Error(
+      "这个头像在房间里已被占用（旧版限制）。请换一个头像，或执行 supabase/migrate-multi.sql 升级数据库。",
+    );
+  }
+
+  if (err instanceof Error && err.message) return err;
+  if (typeof e.message === "string" && e.message.trim()) {
+    return new Error(e.message);
+  }
+  return new Error("进入失败，请重试");
+}
+
 async function cloudFindOrJoin(
   passphraseHash: string,
   slot: Slot,
@@ -21,72 +66,76 @@ async function cloudFindOrJoin(
 ): Promise<{ couple: Couple; profile: Profile }> {
   const sb = getSupabase();
 
-  let { data: couple, error } = await sb
-    .from("couples")
-    .select("*")
-    .eq("passphrase_hash", passphraseHash)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!couple) {
-    const created = await sb
+  try {
+    let { data: couple, error } = await sb
       .from("couples")
-      .insert({ passphrase_hash: passphraseHash })
+      .select("*")
+      .eq("passphrase_hash", passphraseHash)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!couple) {
+      const created = await sb
+        .from("couples")
+        .insert({ passphrase_hash: passphraseHash })
+        .select("*")
+        .single();
+      if (created.error) {
+        // 并发：另一人刚建好
+        const again = await sb
+          .from("couples")
+          .select("*")
+          .eq("passphrase_hash", passphraseHash)
+          .single();
+        if (again.error) throw again.error;
+        couple = again.data;
+      } else {
+        couple = created.data;
+      }
+    }
+
+    // 同房间 + 同昵称 → 视为同一人（多端登录复用），可更新头像
+    const existing = await sb
+      .from("profiles")
+      .select("*")
+      .eq("couple_id", couple.id)
+      .eq("nickname", nickname)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existing.error) throw existing.error;
+
+    if (existing.data) {
+      if (existing.data.slot !== slot) {
+        const updated = await sb
+          .from("profiles")
+          .update({ slot, updated_at: new Date().toISOString() })
+          .eq("id", existing.data.id)
+          .select("*")
+          .single();
+        if (updated.error) throw updated.error;
+        return { couple: couple as Couple, profile: updated.data as Profile };
+      }
+      return { couple: couple as Couple, profile: existing.data as Profile };
+    }
+
+    const inserted = await sb
+      .from("profiles")
+      .insert({
+        couple_id: couple.id,
+        slot,
+        nickname,
+        goal_kg: DEFAULT_GOAL_KG,
+      })
       .select("*")
       .single();
-    if (created.error) {
-      // 并发：另一人刚建好
-      const again = await sb
-        .from("couples")
-        .select("*")
-        .eq("passphrase_hash", passphraseHash)
-        .single();
-      if (again.error) throw again.error;
-      couple = again.data;
-    } else {
-      couple = created.data;
-    }
+    if (inserted.error) throw inserted.error;
+
+    return { couple: couple as Couple, profile: inserted.data as Profile };
+  } catch (err) {
+    throw toJoinError(err);
   }
-
-  // 同房间 + 同昵称 → 视为同一人（多端登录复用），可更新头像
-  const existing = await sb
-    .from("profiles")
-    .select("*")
-    .eq("couple_id", couple.id)
-    .eq("nickname", nickname)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (existing.error) throw existing.error;
-
-  if (existing.data) {
-    if (existing.data.slot !== slot) {
-      const updated = await sb
-        .from("profiles")
-        .update({ slot, updated_at: new Date().toISOString() })
-        .eq("id", existing.data.id)
-        .select("*")
-        .single();
-      if (updated.error) throw updated.error;
-      return { couple: couple as Couple, profile: updated.data as Profile };
-    }
-    return { couple: couple as Couple, profile: existing.data as Profile };
-  }
-
-  const inserted = await sb
-    .from("profiles")
-    .insert({
-      couple_id: couple.id,
-      slot,
-      nickname,
-      goal_kg: DEFAULT_GOAL_KG,
-    })
-    .select("*")
-    .single();
-  if (inserted.error) throw inserted.error;
-
-  return { couple: couple as Couple, profile: inserted.data as Profile };
 }
 
 async function cloudFetchBundle(coupleId: string): Promise<CoupleBundle> {
