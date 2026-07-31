@@ -5,14 +5,18 @@ import { useRouter } from "next/navigation";
 import { NumberPad } from "@/components/NumberPad";
 import { useCouple } from "@/hooks/useCouple";
 import { api } from "@/lib/api";
+import { clearEnterDraft } from "@/lib/enter-draft";
 import { displayToKg, todayISO, type Unit } from "@/lib/units";
 
 export default function OnboardPage() {
   const router = useRouter();
-  const { session, bundle, unit, refresh, loading } = useCouple();
+  const { session, bundle, unit, refresh, loading, leaveRoom, logout } =
+    useCouple();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [startDate, setStartDate] = useState(todayISO());
-  const [startWeightDisplay, setStartWeightDisplay] = useState<number | null>(null);
+  const [startWeightDisplay, setStartWeightDisplay] = useState<number | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,12 +63,31 @@ export default function OnboardPage() {
           currentKg,
         );
       }
+      clearEnterDraft();
       await refresh();
       router.replace("/battle");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function backToEnter() {
+    const ok = window.confirm(
+      "要返回重新填写昵称或暗号吗？将退出当前匹配（尚未完成的起点不会保存）。",
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      // 引导未完成：删掉这次临时档案，避免错暗号留下空号
+      await leaveRoom();
+    } catch {
+      logout();
+    } finally {
+      setBusy(false);
+      router.replace("/enter");
     }
   }
 
@@ -95,11 +118,21 @@ export default function OnboardPage() {
       </header>
 
       {step === 1 && (
-        <NumberPad
-          unit={unit}
-          onSubmit={saveStart}
-          submitLabel={`下一步（${unit === "jin" ? "斤" : "kg"}）`}
-        />
+        <div className="flex flex-col gap-4">
+          <NumberPad
+            unit={unit}
+            onSubmit={saveStart}
+            submitLabel={`下一步（${unit === "jin" ? "斤" : "kg"}）`}
+          />
+          <button
+            type="button"
+            className="pixel-btn py-2 text-xs"
+            disabled={busy}
+            onClick={() => void backToEnter()}
+          >
+            返回修改昵称 / 暗号
+          </button>
+        </div>
       )}
 
       {step === 2 && (
@@ -128,6 +161,14 @@ export default function OnboardPage() {
           >
             返回改体重
           </button>
+          <button
+            type="button"
+            className="text-center text-[11px] text-muted underline-offset-2 hover:underline"
+            disabled={busy}
+            onClick={() => void backToEnter()}
+          >
+            返回修改昵称 / 暗号
+          </button>
         </form>
       )}
 
@@ -148,6 +189,22 @@ export default function OnboardPage() {
             onClick={() => void finish(null, true)}
           >
             跳过，稍后再记
+          </button>
+          <button
+            type="button"
+            className="pixel-btn py-2 text-xs"
+            disabled={busy}
+            onClick={() => setStep(2)}
+          >
+            返回改日期
+          </button>
+          <button
+            type="button"
+            className="text-center text-[11px] text-muted underline-offset-2 hover:underline"
+            disabled={busy}
+            onClick={() => void backToEnter()}
+          >
+            返回修改昵称 / 暗号
           </button>
         </div>
       )}

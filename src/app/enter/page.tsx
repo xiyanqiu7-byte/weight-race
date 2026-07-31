@@ -1,39 +1,74 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { ModeBanner } from "@/components/ModeBanner";
 import { useCouple } from "@/hooks/useCouple";
 import { api } from "@/lib/api";
+import {
+  clearEnterDraft,
+  loadEnterDraft,
+  saveEnterDraft,
+} from "@/lib/enter-draft";
 import { hashPassphrase } from "@/lib/hash";
 import { SLOT_OPTIONS, type Slot } from "@/lib/types";
+
+type EnterForm = {
+  slot: Slot;
+  nickname: string;
+  phrase: string;
+};
 
 export default function EnterPage() {
   const router = useRouter();
   const { login, cloud } = useCouple();
-  const [slot, setSlot] = useState<Slot>("a");
-  const [nickname, setNickname] = useState("");
-  const [phrase, setPhrase] = useState("");
+  const [form, setForm] = useState<EnterForm>({
+    slot: "a",
+    nickname: "",
+    phrase: "",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const draft = loadEnterDraft();
+    if (!draft) return;
+    // 从引导页返回时恢复填写内容（sessionStorage，仅本标签页）
+    queueMicrotask(() => {
+      setForm({
+        slot: draft.slot,
+        nickname: draft.nickname,
+        phrase: draft.phrase,
+      });
+    });
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const name = nickname.trim();
+    const name = form.nickname.trim();
     if (!name) {
       setError("请填写昵称");
       return;
     }
-    if (!phrase.trim()) {
+    if (!form.phrase.trim()) {
       setError("请输入共享暗号");
       return;
     }
     setBusy(true);
     try {
-      const hash = await hashPassphrase(phrase);
-      const { couple, profile } = await api.findOrJoinCouple(hash, slot, name);
+      saveEnterDraft({
+        slot: form.slot,
+        nickname: name,
+        phrase: form.phrase,
+      });
+      const hash = await hashPassphrase(form.phrase);
+      const { couple, profile } = await api.findOrJoinCouple(
+        hash,
+        form.slot,
+        name,
+      );
       login({
         coupleId: couple.id,
         profileId: profile.id,
@@ -43,6 +78,7 @@ export default function EnterPage() {
       if (profile.start_weight_kg == null) {
         router.replace("/onboard");
       } else {
+        clearEnterDraft();
         router.replace("/battle");
       }
     } catch (err) {
@@ -73,12 +109,12 @@ export default function EnterPage() {
             <p className="mb-3 text-[13px] font-semibold">选择头像</p>
             <div className="grid grid-cols-4 gap-2">
               {SLOT_OPTIONS.map((s) => {
-                const active = slot === s;
+                const active = form.slot === s;
                 return (
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setSlot(s)}
+                    onClick={() => setForm((prev) => ({ ...prev, slot: s }))}
                     className={`flex items-center justify-center rounded-[20px] bg-cream py-2 transition ${
                       active
                         ? "ring-2 ring-ink ring-offset-2 ring-offset-[var(--bg)]"
@@ -99,8 +135,10 @@ export default function EnterPage() {
             你的昵称
             <input
               className="rounded-[20px] bg-cream px-4 py-3.5 text-[15px] font-medium text-ink outline-none shadow-[0_8px_28px_rgba(26,26,26,0.07)]"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
+              value={form.nickname}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, nickname: e.target.value }))
+              }
               placeholder="例如：豆豆"
               maxLength={12}
               autoComplete="nickname"
@@ -111,8 +149,10 @@ export default function EnterPage() {
             共享暗号
             <input
               className="rounded-[20px] bg-cream px-4 py-3.5 text-[15px] font-medium text-ink outline-none shadow-[0_8px_28px_rgba(26,26,26,0.07)]"
-              value={phrase}
-              onChange={(e) => setPhrase(e.target.value)}
+              value={form.phrase}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, phrase: e.target.value }))
+              }
               placeholder="和朋友约定同一句话"
               maxLength={40}
               autoComplete="off"
