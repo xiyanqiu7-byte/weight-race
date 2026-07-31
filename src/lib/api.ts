@@ -1,3 +1,4 @@
+import type { PersonalBackup } from "./backup";
 import { localApi } from "./local-db";
 import { getSupabase, isCloudEnabled } from "./supabase";
 import type {
@@ -405,6 +406,90 @@ export const api = {
       throw error;
     }
     return data as BowelLog;
+  },
+
+  /** 把个人备份导入当前房间账号；同日记录覆盖。不改昵称/头像。 */
+  async importPersonalBackup(
+    coupleId: string,
+    profileId: string,
+    backup: PersonalBackup,
+  ) {
+    if (!isCloudEnabled()) {
+      return localApi.importPersonalBackup(coupleId, profileId, backup);
+    }
+
+    const sb = getSupabase();
+    const { error: profileErr } = await sb
+      .from("profiles")
+      .update({
+        start_weight_kg: backup.profile.start_weight_kg,
+        start_date: backup.profile.start_date,
+        goal_kg: backup.profile.goal_kg,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", profileId)
+      .eq("couple_id", coupleId);
+    if (profileErr) throw profileErr;
+
+    if (backup.weighIns.length) {
+      const { error } = await sb.from("weigh_ins").upsert(
+        backup.weighIns.map((w) => ({
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: w.logged_on,
+          weight_kg: w.weight_kg,
+        })),
+        { onConflict: "profile_id,logged_on" },
+      );
+      if (error) throw error;
+    }
+
+    if (backup.mealLogs.length) {
+      const { error } = await sb.from("meal_logs").upsert(
+        backup.mealLogs.map((m) => ({
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: m.logged_on,
+          meal: m.meal,
+          healthy: m.healthy,
+        })),
+        { onConflict: "profile_id,logged_on,meal" },
+      );
+      if (error) throw error;
+    }
+
+    if (backup.workouts.length) {
+      const { error } = await sb.from("workouts").upsert(
+        backup.workouts.map((w) => ({
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: w.logged_on,
+          intensity: w.intensity,
+        })),
+        { onConflict: "profile_id,logged_on" },
+      );
+      if (error) throw error;
+    }
+
+    if (backup.bowelLogs.length) {
+      const { error } = await sb.from("bowel_logs").upsert(
+        backup.bowelLogs.map((b) => ({
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: b.logged_on,
+          happened: b.happened,
+        })),
+        { onConflict: "profile_id,logged_on" },
+      );
+      if (error) {
+        if (isMissingBowelTable(error)) {
+          throw new Error(
+            "还没开通排便打卡表。请到 Supabase → SQL Editor 执行 supabase/migrate-all.sql",
+          );
+        }
+        throw error;
+      }
+    }
   },
 
   subscribe(coupleId: string, onChange: () => void): () => void {

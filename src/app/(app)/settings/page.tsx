@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useCouple } from "@/hooks/useCouple";
 import { api } from "@/lib/api";
+import {
+  backupFileName,
+  buildPersonalBackup,
+  parsePersonalBackup,
+  summarizeBackup,
+} from "@/lib/backup";
 import { displayToKg, formatWeight, kgToDisplay } from "@/lib/units";
 
 export default function SettingsPage() {
@@ -11,6 +17,7 @@ export default function SettingsPage() {
   const { session, bundle, unit, setUnit, leaveRoom, refresh, cloud } =
     useCouple();
   const me = bundle?.profiles.find((p) => p.id === session?.profileId);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [nickname, setNickname] = useState("");
   const [startWeight, setStartWeight] = useState("");
@@ -18,6 +25,7 @@ export default function SettingsPage() {
   const [goalKg, setGoalKg] = useState("5");
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [porting, setPorting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,10 +63,61 @@ export default function SettingsPage() {
     }
   }
 
+  function onExport() {
+    if (!session || !bundle || !me) return;
+    try {
+      const backup = buildPersonalBackup(bundle, session.profileId);
+      const blob = new Blob([JSON.stringify(backup, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = backupFileName(me);
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg(`已导出：${summarizeBackup(backup)}`);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "导出失败");
+    }
+  }
+
+  async function onImportFile(file: File | null) {
+    if (!file || !session) return;
+    setPorting(true);
+    setMsg(null);
+    try {
+      const text = await file.text();
+      let raw: unknown;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        throw new Error("文件不是合法 JSON");
+      }
+      const backup = parsePersonalBackup(raw);
+      const ok = window.confirm(
+        `确定导入到当前房间？\n${summarizeBackup(backup)}\n\n会写入起始体重/目标，并合并打卡；同一天已有的记录会被覆盖。昵称和头像保持现在这个房间的不变。`,
+      );
+      if (!ok) return;
+      await api.importPersonalBackup(
+        session.coupleId,
+        session.profileId,
+        backup,
+      );
+      await refresh();
+      setMsg(`导入完成：${summarizeBackup(backup)}`);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      setPorting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   async function onLeaveRoom() {
     if (leaving) return;
     const ok = window.confirm(
-      "确定退出并删除你在本房间的全部记录？\n（体重 / 饮食 / 训练 / 挑衅都会删掉，且无法恢复。其他人的数据不受影响。）",
+      "确定退出并删除你在本房间的全部记录？\n（体重 / 饮食 / 训练 / 顺畅打卡 / 挑衅都会删掉，且无法恢复。其他人的数据不受影响。）\n\n换房间前请先「导出 JSON」备份。",
     );
     if (!ok) return;
     setLeaving(true);
@@ -162,6 +221,41 @@ export default function SettingsPage() {
         </button>
       </form>
 
+      <section className="card-soft flex flex-col gap-3 p-5">
+        <div>
+          <h2 className="text-[15px] font-bold">换房间 · 备份迁移</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted">
+            导出你在本房间的打卡 JSON，换暗号进新房间后，再点导入即可带走记录。
+            只含你自己的数据，不含挑衅、也不含别人。
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="pixel-btn pixel-btn-primary py-3.5"
+            onClick={onExport}
+            disabled={!bundle || !session || porting}
+          >
+            导出 JSON
+          </button>
+          <button
+            type="button"
+            className="pixel-btn bg-sand py-3.5 text-ink"
+            onClick={() => fileRef.current?.click()}
+            disabled={!session || porting}
+          >
+            {porting ? "导入中…" : "导入 JSON"}
+          </button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => void onImportFile(e.target.files?.[0] ?? null)}
+        />
+      </section>
+
       {msg && <p className="px-1 text-[13px] font-medium text-ink">{msg}</p>}
 
       <button
@@ -174,7 +268,8 @@ export default function SettingsPage() {
       </button>
 
       <p className="px-1 text-[11px] leading-relaxed text-muted">
-        退出会同步删除你在本房间的选手档案和打卡数据；房间里其他人不受影响。若你是最后一人，空房间也会被清掉。之后用同一暗号再进，会当作新选手重新开始。
+        换房间建议：先导出 JSON → 退出旧房间 → 用新暗号进房 → 再导入 JSON。
+        退出会删除你在本房间的数据；其他人不受影响。
       </p>
     </main>
   );

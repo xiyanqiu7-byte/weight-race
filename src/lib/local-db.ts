@@ -1,3 +1,4 @@
+import type { PersonalBackup } from "./backup";
 import type {
   BowelLog,
   Couple,
@@ -296,6 +297,102 @@ export const localApi = {
     db.bowelLogs.push(row);
     write(db);
     return row;
+  },
+
+  /** 导入个人备份到当前房间账号（同日记录覆盖） */
+  async importPersonalBackup(
+    coupleId: string,
+    profileId: string,
+    backup: PersonalBackup,
+  ): Promise<void> {
+    const db = read();
+    const profile = db.profiles.find((p) => p.id === profileId);
+    if (!profile || profile.couple_id !== coupleId) {
+      throw new Error("选手不存在");
+    }
+    profile.start_weight_kg = backup.profile.start_weight_kg;
+    profile.start_date = backup.profile.start_date;
+    profile.goal_kg = backup.profile.goal_kg;
+    profile.updated_at = now();
+
+    for (const w of backup.weighIns) {
+      const existing = db.weighIns.find(
+        (x) => x.profile_id === profileId && x.logged_on === w.logged_on,
+      );
+      if (existing) {
+        existing.weight_kg = w.weight_kg;
+      } else {
+        db.weighIns.push({
+          id: uid(),
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: w.logged_on,
+          weight_kg: w.weight_kg,
+          created_at: now(),
+        });
+      }
+    }
+
+    for (const m of backup.mealLogs) {
+      const existing = db.mealLogs.find(
+        (x) =>
+          x.profile_id === profileId &&
+          x.logged_on === m.logged_on &&
+          x.meal === m.meal,
+      );
+      if (existing) {
+        existing.healthy = m.healthy;
+      } else {
+        db.mealLogs.push({
+          id: uid(),
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: m.logged_on,
+          meal: m.meal,
+          healthy: m.healthy,
+          created_at: now(),
+        });
+      }
+    }
+
+    for (const w of backup.workouts) {
+      const existing = db.workouts.find(
+        (x) => x.profile_id === profileId && x.logged_on === w.logged_on,
+      );
+      if (existing) {
+        existing.intensity = w.intensity;
+      } else {
+        db.workouts.push({
+          id: uid(),
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: w.logged_on,
+          intensity: w.intensity,
+          created_at: now(),
+        });
+      }
+    }
+
+    if (!db.bowelLogs) db.bowelLogs = [];
+    for (const b of backup.bowelLogs) {
+      const existing = db.bowelLogs.find(
+        (x) => x.profile_id === profileId && x.logged_on === b.logged_on,
+      );
+      if (existing) {
+        existing.happened = b.happened;
+      } else {
+        db.bowelLogs.push({
+          id: uid(),
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: b.logged_on,
+          happened: b.happened,
+          created_at: now(),
+        });
+      }
+    }
+
+    write(db);
   },
 
   subscribe(coupleId: string, onChange: () => void): () => void {
