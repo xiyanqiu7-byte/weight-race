@@ -15,22 +15,38 @@ function normalize(hex: string): string {
 /**
  * 折线 / 进度条颜色：
  * 1) 优先用该选手自己头像的底色（avatarBg）
- * 2) 若与他人撞色，再从其他头像色里顺延挑一个空闲色
+ * 2) 同头像撞色时，换一个「没人占用的头像色」——尽量不抢走别人头像的底色
  */
 export function assignPlayerColors(
   profiles: ColorProfile[],
 ): Map<string, string> {
   const ordered = [...profiles].sort((a, b) => a.id.localeCompare(b.id));
+  const preferredById = new Map(
+    ordered.map((p) => [
+      p.id,
+      SLOT_META[p.slot]?.avatarBg ?? SLOT_META.a.avatarBg,
+    ]),
+  );
+  const reservedPreferred = new Set(
+    [...preferredById.values()].map(normalize),
+  );
   const used = new Set<string>();
   const assigned = new Map<string, string>();
 
   for (const p of ordered) {
-    const preferred = SLOT_META[p.slot]?.avatarBg ?? SLOT_META.a.avatarBg;
+    const preferred = preferredById.get(p.id)!;
     let color = preferred;
-    if (used.has(normalize(color))) {
-      const free = PLAYER_PALETTE.find((c) => !used.has(normalize(c)));
-      color = free ?? preferred;
+
+    if (used.has(normalize(preferred))) {
+      // 先找：空闲、且不是别人头像底色的（强调色优先）
+      const spare =
+        PLAYER_PALETTE.find(
+          (c) =>
+            !used.has(normalize(c)) && !reservedPreferred.has(normalize(c)),
+        ) ?? PLAYER_PALETTE.find((c) => !used.has(normalize(c)));
+      color = spare ?? preferred;
     }
+
     used.add(normalize(color));
     assigned.set(p.id, color);
   }
@@ -43,7 +59,9 @@ export function playerColor(
 ): string {
   const map = assignPlayerColors(profiles);
   if (map.has(profileId)) return map.get(profileId)!;
-  const slot = profiles.find((p) => p.id === profileId)?.slot as Slot | undefined;
+  const slot = profiles.find((p) => p.id === profileId)?.slot as
+    | Slot
+    | undefined;
   return slot ? SLOT_META[slot].avatarBg : SLOT_META.a.avatarBg;
 }
 
