@@ -121,9 +121,10 @@ export default function TrendsPage() {
     if (n <= 1) return W / 2;
     return pad + (i * (W - pad * 2)) / (n - 1);
   }
+  // 减得越多越靠下：起点 0 在上方，看起来像体重往下掉
   function yAt(v: number) {
     const t = (v - chart!.min) / (chart!.max - chart!.min || 1);
-    return H - pad - t * (H - pad * 2);
+    return pad + t * (H - pad * 2);
   }
 
   const zeroY =
@@ -134,7 +135,7 @@ export default function TrendsPage() {
       <header className="px-1">
         <h1 className="text-[26px] font-bold tracking-tight">趋势</h1>
         <p className="mt-1 text-[13px] text-muted">
-          减重对比 · 从 0 起算 · 越高减得越多 · {unitLabel}
+          减重对比 · 从同一起点出发 · 越往下减得越多 · {unitLabel}
         </p>
       </header>
 
@@ -226,8 +227,7 @@ export default function TrendsPage() {
           ))}
         </div>
         <p className="mt-2 text-[11px] text-muted">
-          虚线 = 起点 0（未减重）。例如减了 2{unitLabel} 会比减了 1{unitLabel}{" "}
-          更高。
+          虚线 = 起点 0。减了 2{unitLabel} 会比减了 1{unitLabel} 更靠下。
         </p>
       </section>
 
