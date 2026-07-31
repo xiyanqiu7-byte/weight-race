@@ -58,6 +58,16 @@ export interface Poke {
   created_at: string;
 }
 
+/** 排便打卡：happened=true 有出货，false 今天没啦 */
+export interface BowelLog {
+  id: string;
+  couple_id: string;
+  profile_id: string;
+  logged_on: string;
+  happened: boolean;
+  created_at: string;
+}
+
 export interface Session {
   coupleId: string;
   profileId: string;
@@ -72,6 +82,7 @@ export interface CoupleBundle {
   mealLogs: MealLog[];
   workouts: Workout[];
   pokes: Poke[];
+  bowelLogs: BowelLog[];
 }
 
 export const MEAL_LABELS: Record<MealType, string> = {

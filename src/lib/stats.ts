@@ -1,4 +1,5 @@
 import type {
+  BowelLog,
   CoupleBundle,
   Intensity,
   MealLog,
@@ -59,6 +60,18 @@ export function workoutOnDate(
     workouts.find((w) => w.profile_id === profileId && w.logged_on === date)
       ?.intensity ?? null
   );
+}
+
+/** null = 未打卡；true/false = 当天是否有排便 */
+export function bowelOnDate(
+  bowelLogs: BowelLog[],
+  profileId: string,
+  date: string,
+): boolean | null {
+  const row = bowelLogs.find(
+    (b) => b.profile_id === profileId && b.logged_on === date,
+  );
+  return row ? row.happened : null;
 }
 
 export function hasDebuff(

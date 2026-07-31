@@ -1,6 +1,7 @@
 import { localApi } from "./local-db";
 import { getSupabase, isCloudEnabled } from "./supabase";
 import type {
+  BowelLog,
   Couple,
   CoupleBundle,
   Intensity,
@@ -36,7 +37,7 @@ function toJoinError(err: unknown): Error {
       (blob.includes("check constraint") || blob.includes("violates check")))
   ) {
     return new Error(
-      "云端数据库还不支持头像 3/4。请到 Supabase → SQL Editor 执行项目里的 supabase/migrate-multi.sql，然后再试。",
+      "云端数据库还不支持头像 3/4。请到 Supabase → SQL Editor 执行项目里的 supabase/migrate-all.sql，然后再试。",
     );
   }
 
@@ -48,7 +49,7 @@ function toJoinError(err: unknown): Error {
       (blob.includes("unique") || blob.includes("duplicate") || e.code === "23505"))
   ) {
     return new Error(
-      "这个头像在房间里已被占用（旧版限制）。请换一个头像，或执行 supabase/migrate-multi.sql 升级数据库。",
+      "这个头像在房间里已被占用（旧版限制）。请换一个头像，或执行 supabase/migrate-all.sql 升级数据库。",
     );
   }
 
@@ -57,6 +58,19 @@ function toJoinError(err: unknown): Error {
     return new Error(e.message);
   }
   return new Error("进入失败，请重试");
+}
+
+function isMissingBowelTable(err: unknown): boolean {
+  const e = (err ?? {}) as { message?: string; code?: string; details?: string };
+  const blob = [e.message, e.details, e.code].filter(Boolean).join(" ").toLowerCase();
+  return (
+    blob.includes("bowel_logs") &&
+    (blob.includes("does not exist") ||
+      blob.includes("could not find") ||
+      blob.includes("schema cache") ||
+      e.code === "42P01" ||
+      e.code === "PGRST205")
+  );
 }
 
 async function cloudFindOrJoin(
@@ -140,24 +154,32 @@ async function cloudFindOrJoin(
 
 async function cloudFetchBundle(coupleId: string): Promise<CoupleBundle> {
   const sb = getSupabase();
-  const [coupleRes, profilesRes, weighRes, mealRes, workoutRes, pokeRes] =
-    await Promise.all([
-      sb.from("couples").select("*").eq("id", coupleId).single(),
-      sb.from("profiles").select("*").eq("couple_id", coupleId),
-      sb
-        .from("weigh_ins")
-        .select("*")
-        .eq("couple_id", coupleId)
-        .order("logged_on", { ascending: true }),
-      sb.from("meal_logs").select("*").eq("couple_id", coupleId),
-      sb.from("workouts").select("*").eq("couple_id", coupleId),
-      sb
-        .from("pokes")
-        .select("*")
-        .eq("couple_id", coupleId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+  const [
+    coupleRes,
+    profilesRes,
+    weighRes,
+    mealRes,
+    workoutRes,
+    pokeRes,
+    bowelRes,
+  ] = await Promise.all([
+    sb.from("couples").select("*").eq("id", coupleId).single(),
+    sb.from("profiles").select("*").eq("couple_id", coupleId),
+    sb
+      .from("weigh_ins")
+      .select("*")
+      .eq("couple_id", coupleId)
+      .order("logged_on", { ascending: true }),
+    sb.from("meal_logs").select("*").eq("couple_id", coupleId),
+    sb.from("workouts").select("*").eq("couple_id", coupleId),
+    sb
+      .from("pokes")
+      .select("*")
+      .eq("couple_id", coupleId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    sb.from("bowel_logs").select("*").eq("couple_id", coupleId),
+  ]);
 
   if (coupleRes.error) {
     const err = coupleRes.error as { code?: string; message?: string };
@@ -171,6 +193,12 @@ async function cloudFetchBundle(coupleId: string): Promise<CoupleBundle> {
   if (mealRes.error) throw mealRes.error;
   if (workoutRes.error) throw workoutRes.error;
   if (pokeRes.error) throw pokeRes.error;
+  let bowelLogs: BowelLog[] = [];
+  if (bowelRes.error) {
+    if (!isMissingBowelTable(bowelRes.error)) throw bowelRes.error;
+  } else {
+    bowelLogs = (bowelRes.data ?? []) as BowelLog[];
+  }
 
   return {
     couple: coupleRes.data as Couple,
@@ -179,6 +207,7 @@ async function cloudFetchBundle(coupleId: string): Promise<CoupleBundle> {
     mealLogs: (mealRes.data ?? []) as MealLog[],
     workouts: (workoutRes.data ?? []) as Workout[],
     pokes: (pokeRes.data ?? []) as Poke[],
+    bowelLogs,
   };
 }
 
@@ -345,6 +374,39 @@ export const api = {
     return data as Poke;
   },
 
+  async upsertBowel(
+    coupleId: string,
+    profileId: string,
+    loggedOn: string,
+    happened: boolean,
+  ) {
+    if (!isCloudEnabled()) {
+      return localApi.upsertBowel(coupleId, profileId, loggedOn, happened);
+    }
+    const { data, error } = await getSupabase()
+      .from("bowel_logs")
+      .upsert(
+        {
+          couple_id: coupleId,
+          profile_id: profileId,
+          logged_on: loggedOn,
+          happened,
+        },
+        { onConflict: "profile_id,logged_on" },
+      )
+      .select("*")
+      .single();
+    if (error) {
+      if (isMissingBowelTable(error)) {
+        throw new Error(
+          "还没开通排便打卡表。请到 Supabase → SQL Editor 执行 supabase/migrate-bowel.sql",
+        );
+      }
+      throw error;
+    }
+    return data as BowelLog;
+  },
+
   subscribe(coupleId: string, onChange: () => void): () => void {
     if (!isCloudEnabled()) return localApi.subscribe(coupleId, onChange);
     const sb = getSupabase();
@@ -396,6 +458,16 @@ export const api = {
           event: "*",
           schema: "public",
           table: "pokes",
+          filter: `couple_id=eq.${coupleId}`,
+        },
+        onChange,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bowel_logs",
           filter: `couple_id=eq.${coupleId}`,
         },
         onChange,

@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import { NumberPad } from "@/components/NumberPad";
 import { useCouple } from "@/hooks/useCouple";
 import { api } from "@/lib/api";
-import { mealsOnDate, workoutOnDate, weightOnDate } from "@/lib/stats";
+import {
+  bowelOnDate,
+  mealsOnDate,
+  workoutOnDate,
+  weightOnDate,
+} from "@/lib/stats";
 import {
   INTENSITY_LABELS,
   MEAL_LABELS,
@@ -30,6 +35,7 @@ export default function RecordPage() {
       weight: weightOnDate(bundle.weighIns, pid, date),
       meals: mealsOnDate(bundle.mealLogs, pid, date),
       intensity: workoutOnDate(bundle.workouts, pid, date),
+      bowel: bowelOnDate(bundle.bowelLogs ?? [], pid, date),
     };
   }, [session, bundle, date]);
 
@@ -85,6 +91,25 @@ export default function RecordPage() {
       );
       await refresh();
       flash(`训练：${INTENSITY_LABELS[intensity]}`);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveBowel(happened: boolean) {
+    if (!session) return;
+    setBusy(true);
+    try {
+      await api.upsertBowel(
+        session.coupleId,
+        session.profileId,
+        date,
+        happened,
+      );
+      await refresh();
+      flash(happened ? "恭喜出货顺利 💩✨" : "今天先攒着，明天继续加油");
     } catch (e) {
       flash(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -187,6 +212,56 @@ export default function RecordPage() {
               {INTENSITY_LABELS[i]}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="card-soft p-4">
+        <div className="mb-1 flex items-end justify-between gap-2">
+          <h2 className="text-[15px] font-bold">顺畅打卡</h2>
+          <span className="text-[11px] text-muted">今天小厕所报到了吗？</span>
+        </div>
+        <p className="mb-3 text-[12px] leading-relaxed text-muted">
+          肠道开心，减脂也更轻松～点一下就好。
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className={`rounded-[20px] px-4 py-3.5 text-left transition ${
+              snapshot.bowel === true
+                ? "bg-ink text-white"
+                : "bg-sand text-ink"
+            }`}
+            onClick={() => void saveBowel(true)}
+            disabled={busy}
+          >
+            <span className="block text-[13px] font-semibold">顺利出货 💩</span>
+            <span
+              className={`mt-1 block text-[11px] ${
+                snapshot.bowel === true ? "text-white/70" : "text-muted"
+              }`}
+            >
+              畅通无阻，超棒
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`rounded-[20px] px-4 py-3.5 text-left transition ${
+              snapshot.bowel === false
+                ? "bg-ink text-white"
+                : "bg-sand text-ink"
+            }`}
+            onClick={() => void saveBowel(false)}
+            disabled={busy}
+          >
+            <span className="block text-[13px] font-semibold">今天还没…</span>
+            <span
+              className={`mt-1 block text-[11px] ${
+                snapshot.bowel === false ? "text-white/70" : "text-muted"
+              }`}
+            >
+              多喝水，慢慢来
+            </span>
+          </button>
         </div>
       </section>
 

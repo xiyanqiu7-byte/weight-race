@@ -16,11 +16,102 @@
 - 各自选头像（男生/女生均可，可重复）
 - 想好一句**暗号**（两边必须一字不差）
 
-若你的项目是早期建的表，还需要在 Supabase SQL Editor 执行一次：
+老项目升级（头像 3/4 + 排便打卡）请直接跑一次：
 
-`supabase/migrate-multi.sql`
+`supabase/migrate-all.sql`
 
-（取消「一间房只能一个男生一个女生」的限制）
+（下面「小白专供」有完整复制粘贴版。退出房间删记录不需要 SQL。）
+
+---
+
+## 小白专供：一次性跑完数据库升级
+
+只做这一件事就够了（大约 2 分钟）。**不用改网站代码。**
+
+### 步骤
+
+1. 浏览器打开：https://supabase.com/dashboard  
+2. 登录后，点进你「减脂对战」用的那个项目  
+3. 左侧点 **SQL Editor** → 再点 **New query**  
+4. 把编辑器清空，粘贴下面**整段 SQL**（从第一行 `-- ===` 到最后一行 `end $$;`）  
+5. 点绿色 **Run**（运行）  
+6. 成功：出现 **Success** 或 `Success. No rows returned`  
+7. 失败：把红色报错整段复制下来，回来发给我
+
+### 要粘贴的整段 SQL
+
+```sql
+-- 一次性升级：头像 3/4 + 排便打卡
+
+alter table profiles drop constraint if exists profiles_couple_id_slot_key;
+
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.conname
+    from pg_constraint c
+    join pg_class t on c.conrelid = t.oid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'profiles'
+      and c.contype = 'u'
+      and pg_get_constraintdef(c.oid) ~* 'couple_id'
+      and pg_get_constraintdef(c.oid) ~* 'slot'
+  loop
+    execute format('alter table profiles drop constraint %I', r.conname);
+  end loop;
+end $$;
+
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.conname
+    from pg_constraint c
+    join pg_class t on c.conrelid = t.oid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'profiles'
+      and c.contype = 'c'
+      and pg_get_constraintdef(c.oid) ~* 'slot'
+  loop
+    execute format('alter table profiles drop constraint %I', r.conname);
+  end loop;
+end $$;
+
+alter table profiles drop constraint if exists profiles_slot_check;
+alter table profiles
+  add constraint profiles_slot_check check (slot in ('a', 'b', 'c', 'd'));
+
+create table if not exists bowel_logs (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references couples(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  logged_on date not null,
+  happened boolean not null,
+  created_at timestamptz not null default now(),
+  unique (profile_id, logged_on)
+);
+
+create index if not exists idx_bowel_logs_couple on bowel_logs(couple_id, logged_on);
+
+alter table bowel_logs enable row level security;
+
+drop policy if exists "anon_all_bowel_logs" on bowel_logs;
+create policy "anon_all_bowel_logs" on bowel_logs for all to anon using (true) with check (true);
+
+do $$
+begin
+  alter publication supabase_realtime add table bowel_logs;
+exception
+  when duplicate_object then null;
+end $$;
+```
+
+跑完 SQL **还不会**让网站立刻出现新功能——网站代码还要合并 PR 并同步到 Vercel。SQL 先跑完就行，回来找我同步 Vercel。
 
 ---
 
