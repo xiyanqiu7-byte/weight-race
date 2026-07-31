@@ -60,7 +60,13 @@ export default function TrendsPage() {
           w.logged_on === key &&
           w.intensity !== "none",
       );
-      cells.push({ d, key, weighed, indulged, trained });
+      const pooped = (bundle.bowelLogs ?? []).some(
+        (b) =>
+          b.profile_id === session.profileId &&
+          b.logged_on === key &&
+          b.happened,
+      );
+      cells.push({ d, key, weighed, indulged, trained, pooped });
     }
     return {
       cells,
@@ -220,11 +226,19 @@ export default function TrendsPage() {
                   💪
                 </span>
               )}
+              {c.pooped && (
+                <span
+                  className="absolute -bottom-1 -left-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                  aria-label="有排便"
+                >
+                  💩
+                </span>
+              )}
             </div>
           ))}
         </div>
         <p className="mt-3 text-[11px] text-white/45">
-          黄底 = 已称重 · 右上角 💪 = 有训练
+          黄底 = 已称重 · 右上 💪 = 有训练 · 左下 💩 = 顺畅出货
         </p>
       </section>
 

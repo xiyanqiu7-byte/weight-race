@@ -65,10 +65,22 @@ create table if not exists pokes (
   created_at timestamptz not null default now()
 );
 
+-- 排便打卡（happened = 今天有没有顺利出货）
+create table if not exists bowel_logs (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references couples(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  logged_on date not null,
+  happened boolean not null,
+  created_at timestamptz not null default now(),
+  unique (profile_id, logged_on)
+);
+
 create index if not exists idx_weigh_ins_couple on weigh_ins(couple_id, logged_on);
 create index if not exists idx_meal_logs_couple on meal_logs(couple_id, logged_on);
 create index if not exists idx_workouts_couple on workouts(couple_id, logged_on);
 create index if not exists idx_pokes_couple on pokes(couple_id, created_at desc);
+create index if not exists idx_bowel_logs_couple on bowel_logs(couple_id, logged_on);
 
 -- 小圈子应用：开放匿名读写（靠暗号哈希隔离房间，勿公开分享链接和暗号）
 alter table couples enable row level security;
@@ -77,6 +89,7 @@ alter table weigh_ins enable row level security;
 alter table meal_logs enable row level security;
 alter table workouts enable row level security;
 alter table pokes enable row level security;
+alter table bowel_logs enable row level security;
 
 create policy "anon_all_couples" on couples for all to anon using (true) with check (true);
 create policy "anon_all_profiles" on profiles for all to anon using (true) with check (true);
@@ -84,6 +97,7 @@ create policy "anon_all_weigh_ins" on weigh_ins for all to anon using (true) wit
 create policy "anon_all_meal_logs" on meal_logs for all to anon using (true) with check (true);
 create policy "anon_all_workouts" on workouts for all to anon using (true) with check (true);
 create policy "anon_all_pokes" on pokes for all to anon using (true) with check (true);
+create policy "anon_all_bowel_logs" on bowel_logs for all to anon using (true) with check (true);
 
 -- Realtime：对方一改你这边自动刷新
 alter publication supabase_realtime add table profiles;
@@ -91,3 +105,4 @@ alter publication supabase_realtime add table weigh_ins;
 alter publication supabase_realtime add table meal_logs;
 alter publication supabase_realtime add table workouts;
 alter publication supabase_realtime add table pokes;
+alter publication supabase_realtime add table bowel_logs;

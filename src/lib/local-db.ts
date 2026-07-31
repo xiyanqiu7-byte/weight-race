@@ -1,4 +1,5 @@
 import type {
+  BowelLog,
   Couple,
   CoupleBundle,
   Intensity,
@@ -21,6 +22,7 @@ interface LocalDb {
   mealLogs: MealLog[];
   workouts: Workout[];
   pokes: Poke[];
+  bowelLogs: BowelLog[];
 }
 
 function emptyDb(): LocalDb {
@@ -31,6 +33,7 @@ function emptyDb(): LocalDb {
     mealLogs: [],
     workouts: [],
     pokes: [],
+    bowelLogs: [],
   };
 }
 
@@ -117,6 +120,7 @@ export const localApi = {
         .filter((p) => p.couple_id === coupleId)
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .slice(0, 20),
+      bowelLogs: db.bowelLogs.filter((b) => b.couple_id === coupleId),
     };
   },
 
@@ -239,6 +243,34 @@ export const localApi = {
       created_at: now(),
     };
     db.pokes.unshift(row);
+    write(db);
+    return row;
+  },
+
+  async upsertBowel(
+    coupleId: string,
+    profileId: string,
+    loggedOn: string,
+    happened: boolean,
+  ): Promise<BowelLog> {
+    const db = read();
+    const existing = db.bowelLogs.find(
+      (b) => b.profile_id === profileId && b.logged_on === loggedOn,
+    );
+    if (existing) {
+      existing.happened = happened;
+      write(db);
+      return existing;
+    }
+    const row: BowelLog = {
+      id: uid(),
+      couple_id: coupleId,
+      profile_id: profileId,
+      logged_on: loggedOn,
+      happened,
+      created_at: now(),
+    };
+    db.bowelLogs.push(row);
     write(db);
     return row;
   },

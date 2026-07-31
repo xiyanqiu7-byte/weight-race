@@ -22,6 +22,45 @@
 
 （取消「一间房只能一个男生一个女生」的限制）
 
+若要开通「顺畅打卡 / 排便」，再执行一次：
+
+`supabase/migrate-bowel.sql`
+
+---
+
+## 小白专供：开通「顺畅打卡」
+
+1. 打开 https://supabase.com/dashboard → 点进你的项目  
+2. 左侧 **SQL Editor** → **New query**  
+3. 粘贴下面整段 → 点绿色 **Run**  
+4. 看到 Success 即可；然后重新部署/刷新网站
+
+```sql
+create table if not exists bowel_logs (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references couples(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  logged_on date not null,
+  happened boolean not null,
+  created_at timestamptz not null default now(),
+  unique (profile_id, logged_on)
+);
+
+create index if not exists idx_bowel_logs_couple on bowel_logs(couple_id, logged_on);
+
+alter table bowel_logs enable row level security;
+
+drop policy if exists "anon_all_bowel_logs" on bowel_logs;
+create policy "anon_all_bowel_logs" on bowel_logs for all to anon using (true) with check (true);
+
+do $$
+begin
+  alter publication supabase_realtime add table bowel_logs;
+exception
+  when duplicate_object then null;
+end $$;
+```
+
 ---
 
 ## 本机 / 云端配置与部署
