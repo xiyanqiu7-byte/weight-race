@@ -29,7 +29,10 @@ interface CoupleContextValue {
   setUnit: (u: Unit) => void;
   refresh: () => Promise<void>;
   login: (session: Session) => void;
+  /** 仅清除本机登录（进房失败等恢复用，不删云端数据） */
   logout: () => void;
+  /** 退出并删除自己在本房间的档案与打卡记录 */
+  leaveRoom: () => Promise<void>;
   cloud: boolean;
 }
 
@@ -107,6 +110,16 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
     setBundle(null);
   }, []);
 
+  const leaveRoom = useCallback(async () => {
+    const s = loadSession();
+    if (s) {
+      await api.leaveRoom(s.coupleId, s.profileId);
+    }
+    clearSession();
+    setSession(null);
+    setBundle(null);
+  }, []);
+
   const setUnit = useCallback((u: Unit) => {
     saveUnit(u);
     setUnitState(u);
@@ -123,9 +136,21 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       refresh,
       login,
       logout,
+      leaveRoom,
       cloud: api.isCloud(),
     }),
-    [session, bundle, loading, error, unit, setUnit, refresh, login, logout],
+    [
+      session,
+      bundle,
+      loading,
+      error,
+      unit,
+      setUnit,
+      refresh,
+      login,
+      logout,
+      leaveRoom,
+    ],
   );
 
   return (

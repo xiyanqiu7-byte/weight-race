@@ -214,6 +214,34 @@ export const api = {
     return data as Profile;
   },
 
+  /** 退出房间：删掉自己的选手档案（体重/饮食/训练/挑衅随外键级联删除）；房间空了则删房间 */
+  async leaveRoom(coupleId: string, profileId: string) {
+    if (!isCloudEnabled()) return localApi.leaveRoom(coupleId, profileId);
+
+    const sb = getSupabase();
+    const { error: delErr } = await sb
+      .from("profiles")
+      .delete()
+      .eq("id", profileId)
+      .eq("couple_id", coupleId);
+    if (delErr) throw delErr;
+
+    const { data: left, error: leftErr } = await sb
+      .from("profiles")
+      .select("id")
+      .eq("couple_id", coupleId)
+      .limit(1);
+    if (leftErr) throw leftErr;
+
+    if (!left?.length) {
+      const { error: coupleErr } = await sb
+        .from("couples")
+        .delete()
+        .eq("id", coupleId);
+      if (coupleErr) throw coupleErr;
+    }
+  },
+
   async upsertWeighIn(
     coupleId: string,
     profileId: string,

@@ -134,6 +134,27 @@ export const localApi = {
     return profile;
   },
 
+  /** 退出房间：删除自己的档案与相关记录；无人则删掉空房间 */
+  async leaveRoom(coupleId: string, profileId: string): Promise<void> {
+    const db = read();
+    db.weighIns = db.weighIns.filter((w) => w.profile_id !== profileId);
+    db.mealLogs = db.mealLogs.filter((m) => m.profile_id !== profileId);
+    db.workouts = db.workouts.filter((w) => w.profile_id !== profileId);
+    db.pokes = db.pokes.filter(
+      (p) => p.from_profile_id !== profileId && p.to_profile_id !== profileId,
+    );
+    db.profiles = db.profiles.filter((p) => p.id !== profileId);
+    const remaining = db.profiles.some((p) => p.couple_id === coupleId);
+    if (!remaining) {
+      db.couples = db.couples.filter((c) => c.id !== coupleId);
+      db.weighIns = db.weighIns.filter((w) => w.couple_id !== coupleId);
+      db.mealLogs = db.mealLogs.filter((m) => m.couple_id !== coupleId);
+      db.workouts = db.workouts.filter((w) => w.couple_id !== coupleId);
+      db.pokes = db.pokes.filter((p) => p.couple_id !== coupleId);
+    }
+    write(db);
+  },
+
   async upsertWeighIn(
     coupleId: string,
     profileId: string,
