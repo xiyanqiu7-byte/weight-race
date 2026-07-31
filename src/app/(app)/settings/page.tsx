@@ -8,7 +8,8 @@ import { displayToKg, formatWeight, kgToDisplay } from "@/lib/units";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { session, bundle, unit, setUnit, logout, refresh, cloud } = useCouple();
+  const { session, bundle, unit, setUnit, leaveRoom, refresh, cloud } =
+    useCouple();
   const me = bundle?.profiles.find((p) => p.id === session?.profileId);
 
   const [nickname, setNickname] = useState("");
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const [startDate, setStartDate] = useState("");
   const [goalKg, setGoalKg] = useState("5");
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,9 +55,21 @@ export default function SettingsPage() {
     }
   }
 
-  function onLogout() {
-    logout();
-    router.replace("/enter");
+  async function onLeaveRoom() {
+    if (leaving) return;
+    const ok = window.confirm(
+      "确定退出并删除你在本房间的全部记录？\n（体重 / 饮食 / 训练 / 挑衅都会删掉，且无法恢复。其他人的数据不受影响。）",
+    );
+    if (!ok) return;
+    setLeaving(true);
+    setMsg(null);
+    try {
+      await leaveRoom();
+      router.replace("/enter");
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "退出失败，请重试");
+      setLeaving(false);
+    }
   }
 
   return (
@@ -153,14 +167,14 @@ export default function SettingsPage() {
       <button
         type="button"
         className="pixel-btn bg-brick py-3.5 text-ink"
-        onClick={onLogout}
+        onClick={() => void onLeaveRoom()}
+        disabled={leaving}
       >
-        退出房间（清除本机登录）
+        {leaving ? "正在退出…" : "退出房间并删除我的记录"}
       </button>
 
       <p className="px-1 text-[11px] leading-relaxed text-muted">
-        退出不会删除已有记录。用同一暗号重新进入即可继续（会生成本房间新选手档案）。双人同步见
-        DEPLOY.md。
+        退出会同步删除你在本房间的选手档案和打卡数据；房间里其他人不受影响。若你是最后一人，空房间也会被清掉。之后用同一暗号再进，会当作新选手重新开始。
       </p>
     </main>
   );
