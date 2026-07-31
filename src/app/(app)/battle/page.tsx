@@ -150,24 +150,37 @@ export default function BattlePage() {
         </p>
       </header>
 
-      <section className="card-taupe relative overflow-hidden px-4 py-6">
+      <section className="card-taupe relative px-3 pb-5 pt-2">
+        {/* 背景层单独裁圆角，避免裁掉头像弹动 / 挑衅 emoji */}
         <div
-          className="pointer-events-none absolute -left-6 top-2 h-36 w-36 rounded-full opacity-80 blur-2xl"
-          style={{ background: SLOT_META.a.color }}
-        />
-        <div
-          className="pointer-events-none absolute -right-4 bottom-0 h-40 w-40 rounded-full opacity-70 blur-2xl"
-          style={{ background: SLOT_META.b.color }}
-        />
+          aria-hidden
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+        >
+          <div
+            className="absolute -left-6 top-2 h-36 w-36 rounded-full opacity-80 blur-2xl"
+            style={{ background: SLOT_META.a.color }}
+          />
+          <div
+            className="absolute -right-4 bottom-0 h-40 w-40 rounded-full opacity-70 blur-2xl"
+            style={{ background: SLOT_META.b.color }}
+          />
+        </div>
         {(() => {
           const rowCount =
             view.others.length === 0 ? 2 : view.total;
           const avatarSize = avatarSizeForCount(rowCount);
           const avatarGap = avatarGapForCount(rowCount);
+          const needScroll = rowCount > 6;
           return (
             <div
-              className="relative flex flex-nowrap items-end justify-center overflow-x-auto px-1"
-              style={{ gap: avatarGap }}
+              className={`relative flex flex-nowrap items-end justify-center px-1 ${
+                needScroll ? "overflow-x-auto" : ""
+              }`}
+              style={{
+                gap: avatarGap,
+                // buff / 挑衅角标 + breathe 上移，需要顶部留白
+                paddingTop: Math.max(16, Math.round(avatarSize * 0.12)),
+              }}
             >
               <PlayerChip
                 profile={view.me}
@@ -182,7 +195,7 @@ export default function BattlePage() {
               />
               {view.others.length === 0 ? (
                 <div
-                  className="flex flex-col items-center justify-center text-muted"
+                  className="flex shrink-0 flex-col items-center justify-center text-muted"
                   style={{
                     width: avatarSize,
                     minHeight: avatarSize + 28,

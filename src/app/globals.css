@@ -119,6 +119,7 @@ select {
   border-radius: var(--radius-card);
   background: var(--taupe);
   box-shadow: none;
+  isolation: isolate;
 }
 
 .card-dark {

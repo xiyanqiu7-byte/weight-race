@@ -24,8 +24,16 @@ export function PixelAvatar({
   const meta = SLOT_META[slot] ?? SLOT_META.a;
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: size, height: size }}>
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      <div
+        className="relative"
+        style={{
+          width: size,
+          // 给头顶角标留空间，避免被父级裁切观感
+          height: size,
+          marginTop: 2,
+        }}
+      >
         {(buff || debuff) && (
           <div className="absolute -top-2 left-1/2 z-10 flex -translate-x-1/2 gap-1 pop-in">
             {debuff && (
