@@ -1,30 +1,50 @@
-import { SLOT_META, SLOT_OPTIONS, type Profile } from "./types";
+import { SLOT_META, SLOT_OPTIONS, type Profile, type Slot } from "./types";
 
-/**
- * 折线 / 进度条用色：取自四个头像本身的主色 + 底色，
- * 按房间内选手稳定排序后轮流分配，互不重复。
- */
+/** 头像圆形底色（首选）+ 头像强调色（撞色时兜底） */
 export const PLAYER_PALETTE: readonly string[] = [
   ...SLOT_OPTIONS.map((s) => SLOT_META[s].avatarBg),
   ...SLOT_OPTIONS.map((s) => SLOT_META[s].color),
 ];
 
-/** 同一房间内按 id 排序，保证颜色稳定且互异 */
-export function playerColorIndex(
-  profiles: Pick<Profile, "id">[],
-  profileId: string,
-): number {
+type ColorProfile = Pick<Profile, "id" | "slot">;
+
+function normalize(hex: string): string {
+  return hex.trim().toLowerCase();
+}
+
+/**
+ * 折线 / 进度条颜色：
+ * 1) 优先用该选手自己头像的底色（avatarBg）
+ * 2) 若与他人撞色，再从其他头像色里顺延挑一个空闲色
+ */
+export function assignPlayerColors(
+  profiles: ColorProfile[],
+): Map<string, string> {
   const ordered = [...profiles].sort((a, b) => a.id.localeCompare(b.id));
-  const idx = ordered.findIndex((p) => p.id === profileId);
-  return idx < 0 ? 0 : idx;
+  const used = new Set<string>();
+  const assigned = new Map<string, string>();
+
+  for (const p of ordered) {
+    const preferred = SLOT_META[p.slot]?.avatarBg ?? SLOT_META.a.avatarBg;
+    let color = preferred;
+    if (used.has(normalize(color))) {
+      const free = PLAYER_PALETTE.find((c) => !used.has(normalize(c)));
+      color = free ?? preferred;
+    }
+    used.add(normalize(color));
+    assigned.set(p.id, color);
+  }
+  return assigned;
 }
 
 export function playerColor(
-  profiles: Pick<Profile, "id">[],
+  profiles: ColorProfile[],
   profileId: string,
 ): string {
-  const i = playerColorIndex(profiles, profileId);
-  return PLAYER_PALETTE[i % PLAYER_PALETTE.length];
+  const map = assignPlayerColors(profiles);
+  if (map.has(profileId)) return map.get(profileId)!;
+  const slot = profiles.find((p) => p.id === profileId)?.slot as Slot | undefined;
+  return slot ? SLOT_META[slot].avatarBg : SLOT_META.a.avatarBg;
 }
 
 /** 对战页头像：人数越多等比缩小，尽量一行排开 */

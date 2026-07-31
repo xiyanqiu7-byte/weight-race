@@ -23,25 +23,34 @@ function mockProfile(id: string, nickname: string, slot: Slot): Profile {
   };
 }
 
-const GROUPS: Profile[][] = [
-  [
-    mockProfile("p1", "我", "a"),
-    mockProfile("p2", "小笼包", "a"),
-  ],
-  [
-    mockProfile("p1", "我", "a"),
-    mockProfile("p2", "小笼包", "a"),
-    mockProfile("p3", "茶壶", "b"),
-    mockProfile("p4", "火火", "a"),
-  ],
-  [
-    mockProfile("p1", "我", "a"),
-    mockProfile("p2", "小笼包", "a"),
-    mockProfile("p3", "茶壶", "b"),
-    mockProfile("p4", "火火", "a"),
-    mockProfile("p5", "豆豆", "c"),
-    mockProfile("p6", "阿可", "d"),
-  ],
+const GROUPS: { title: string; profiles: Profile[] }[] = [
+  {
+    title: "两人都选头像1：第一个用紫底，第二个自动换青色（不撞色）",
+    profiles: [
+      mockProfile("p1", "我", "a"),
+      mockProfile("p2", "小笼包", "a"),
+    ],
+  },
+  {
+    title: "四人各选不同头像：折线色 = 各自头像底色",
+    profiles: [
+      mockProfile("p1", "我", "a"),
+      mockProfile("p2", "茶壶", "b"),
+      mockProfile("p3", "火火", "c"),
+      mockProfile("p4", "豆豆", "d"),
+    ],
+  },
+  {
+    title: "六人挤一行：头像等比缩小；同头像的会换色",
+    profiles: [
+      mockProfile("p1", "我", "a"),
+      mockProfile("p2", "小笼包", "a"),
+      mockProfile("p3", "茶壶", "b"),
+      mockProfile("p4", "火火", "c"),
+      mockProfile("p5", "豆豆", "d"),
+      mockProfile("p6", "阿可", "b"),
+    ],
+  },
 ];
 
 export default function PreviewUiPage() {
@@ -53,18 +62,17 @@ export default function PreviewUiPage() {
           布局 / 配色预览
         </h1>
         <p className="mt-2 text-[13px] leading-relaxed text-muted">
-          这是预览页，确认后再合并到正式站。头像会按人数等比缩小并尽量排成一行；
-          折线颜色按人分配，不跟头像绑定。
+          头像尽量排成一行并按人数缩小。折线优先用你头像的底色；只有撞色时才换成别的头像色。
         </p>
       </header>
 
-      {GROUPS.map((profiles) => {
+      {GROUPS.map(({ title, profiles }) => {
         const size = avatarSizeForCount(profiles.length);
         const gap = avatarGapForCount(profiles.length);
         return (
-          <section key={profiles.length} className="card-taupe px-3 py-5">
-            <p className="mb-3 px-1 text-[12px] font-semibold text-muted">
-              {profiles.length} 人 · 头像 {size}px
+          <section key={title} className="card-taupe px-3 py-5">
+            <p className="mb-3 px-1 text-[12px] font-semibold leading-snug text-muted">
+              {title}
             </p>
             <div
               className="flex flex-nowrap items-end justify-center overflow-x-auto"
@@ -96,17 +104,16 @@ export default function PreviewUiPage() {
             <svg viewBox="0 0 320 80" className="mt-3 h-auto w-full">
               {profiles.map((p, i) => {
                 const color = playerColor(profiles, p.id);
-                const y = 20 + i * 10;
+                const y = 20 + i * 8;
                 return (
-                  <g key={p.id}>
-                    <path
-                      d={`M16 ${y + 20} L80 ${y} L160 ${y + 12} L240 ${y - 4} L304 ${y + 8}`}
-                      stroke={color}
-                      strokeWidth={3}
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                  </g>
+                  <path
+                    key={p.id}
+                    d={`M16 ${y + 18} L80 ${y} L160 ${y + 10} L240 ${y - 2} L304 ${y + 6}`}
+                    stroke={color}
+                    strokeWidth={3}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
                 );
               })}
             </svg>
@@ -115,13 +122,13 @@ export default function PreviewUiPage() {
       })}
 
       <section className="card-soft p-4">
-        <p className="mb-2 text-[13px] font-bold">选手色板（取自头像）</p>
+        <p className="mb-2 text-[13px] font-bold">可用色（头像底色 + 强调色）</p>
         <div className="flex flex-wrap gap-2">
           {PLAYER_PALETTE.map((c) => (
             <span
               key={c}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[9px] font-semibold text-white shadow-sm"
-              style={{ background: c, color: c === "#ffd541" ? "#1a1a1a" : "#fff" }}
+              className="inline-flex h-8 w-8 rounded-full shadow-sm"
+              style={{ background: c }}
               title={c}
             />
           ))}
