@@ -68,7 +68,14 @@ export function PixelAvatar({
         </div>
       </div>
       {nickname && (
-        <div className="max-w-[120px] truncate text-center text-[13px] font-semibold">
+        <div
+          className="truncate text-center font-semibold"
+          style={{
+            maxWidth: Math.max(size + 8, 56),
+            fontSize: size >= 80 ? 13 : size >= 56 ? 11 : 10,
+            lineHeight: 1.2,
+          }}
+        >
           {nickname}
         </div>
       )}

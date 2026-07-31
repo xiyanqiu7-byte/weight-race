@@ -11,7 +11,7 @@ import {
   weekRange,
 } from "@/lib/stats";
 import { formatWeight } from "@/lib/units";
-import { SLOT_META } from "@/lib/types";
+import { playerColor } from "@/lib/player-color";
 
 export default function ReportPage() {
   const { session, bundle, unit } = useCouple();
@@ -133,7 +133,12 @@ export default function ReportPage() {
               <div className="mb-2 flex items-center gap-2">
                 <span
                   className="inline-block h-3 w-3 rounded-full"
-                  style={{ background: SLOT_META[row.profile.slot].color }}
+                  style={{
+                    background: playerColor(
+                      report.rows.map((r) => r.profile),
+                      row.profile.id,
+                    ),
+                  }}
                 />
                 <span className="text-[15px] font-bold">
                   {row.profile.nickname}

@@ -14,6 +14,11 @@ import {
   milestonesReached,
   profileLost,
 } from "@/lib/stats";
+import {
+  avatarGapForCount,
+  avatarSizeForCount,
+  playerColor,
+} from "@/lib/player-color";
 import { formatWeight, progressRatio, todayISO } from "@/lib/units";
 import { POKE_EMOJIS, SLOT_META, type Profile } from "@/lib/types";
 
@@ -154,40 +159,67 @@ export default function BattlePage() {
           className="pointer-events-none absolute -right-4 bottom-0 h-40 w-40 rounded-full opacity-70 blur-2xl"
           style={{ background: SLOT_META.b.color }}
         />
-        <div className="relative flex flex-wrap items-end justify-center gap-5">
-          <PlayerChip
-            profile={view.me}
-            buff={view.meBuff}
-            debuff={view.meDebuff}
-            pokeEmoji={
-              view.recentPoke?.from_profile_id === view.me.id
-                ? view.recentPoke.emoji
-                : null
-            }
-          />
-          {view.others.length === 0 ? (
-            <div className="flex h-[120px] w-[96px] flex-col items-center justify-center text-[11px] text-muted">
-              <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-white/70 text-lg font-bold text-ink">
-                ?
-              </div>
-              等待加入
-            </div>
-          ) : (
-            view.others.map((p) => (
+        {(() => {
+          const rowCount =
+            view.others.length === 0 ? 2 : view.total;
+          const avatarSize = avatarSizeForCount(rowCount);
+          const avatarGap = avatarGapForCount(rowCount);
+          return (
+            <div
+              className="relative flex flex-nowrap items-end justify-center overflow-x-auto px-1"
+              style={{ gap: avatarGap }}
+            >
               <PlayerChip
-                key={p.id}
-                profile={p}
-                buff={hasBuff(bundle!.workouts, p.id, today)}
-                debuff={hasDebuff(bundle!.mealLogs, p.id, today)}
+                profile={view.me}
+                size={avatarSize}
+                buff={view.meBuff}
+                debuff={view.meDebuff}
                 pokeEmoji={
-                  view.recentPoke?.from_profile_id === p.id
+                  view.recentPoke?.from_profile_id === view.me.id
                     ? view.recentPoke.emoji
                     : null
                 }
               />
-            ))
-          )}
-        </div>
+              {view.others.length === 0 ? (
+                <div
+                  className="flex flex-col items-center justify-center text-muted"
+                  style={{
+                    width: avatarSize,
+                    minHeight: avatarSize + 28,
+                    fontSize: avatarSize >= 70 ? 11 : 10,
+                  }}
+                >
+                  <div
+                    className="mb-2 flex items-center justify-center rounded-full bg-white/70 font-bold text-ink"
+                    style={{
+                      width: avatarSize * 0.72,
+                      height: avatarSize * 0.72,
+                      fontSize: avatarSize >= 70 ? 18 : 14,
+                    }}
+                  >
+                    ?
+                  </div>
+                  等待加入
+                </div>
+              ) : (
+                view.others.map((p) => (
+                  <PlayerChip
+                    key={p.id}
+                    profile={p}
+                    size={avatarSize}
+                    buff={hasBuff(bundle!.workouts, p.id, today)}
+                    debuff={hasDebuff(bundle!.mealLogs, p.id, today)}
+                    pokeEmoji={
+                      view.recentPoke?.from_profile_id === p.id
+                        ? view.recentPoke.emoji
+                        : null
+                    }
+                  />
+                ))
+              )}
+            </div>
+          );
+        })()}
       </section>
 
       {view.ranked.map(({ profile, lost, current }) => {
@@ -203,7 +235,7 @@ export default function BattlePage() {
               current,
               profile.goal_kg,
             )}
-            color={SLOT_META[profile.slot].color}
+            color={playerColor(bundle!.profiles, profile.id)}
             label={`${profile.nickname}${profile.id === view.me.id ? "（我）" : ""} 的减重计划`}
             sublabel={`已减 ${formatWeight(lost, unit)} / 目标 ${profile.goal_kg} kg`}
             currentLabel={
@@ -338,11 +370,13 @@ function PlayerChip({
   buff,
   debuff,
   pokeEmoji,
+  size = 96,
 }: {
   profile: Profile;
   buff: boolean;
   debuff: boolean;
   pokeEmoji?: string | null;
+  size?: number;
 }) {
   return (
     <PixelAvatar
@@ -351,7 +385,7 @@ function PlayerChip({
       buff={buff}
       debuff={debuff}
       pokeEmoji={pokeEmoji}
-      size={96}
+      size={size}
     />
   );
 }

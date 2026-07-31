@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useCouple } from "@/hooks/useCouple";
-import { SLOT_META } from "@/lib/types";
+import { playerColor } from "@/lib/player-color";
 import { formatWeight, kgToDisplay } from "@/lib/units";
 
 export default function TrendsPage() {
@@ -147,7 +147,7 @@ export default function TrendsPage() {
               );
             })}
             {chart.series.map(({ profile, points }) => {
-              const color = SLOT_META[profile.slot].color;
+              const color = playerColor(chart.profiles, profile.id);
               const segs: string[] = [];
               let prev: { x: number; y: number } | null = null;
               points.forEach((v, i) => {
@@ -195,7 +195,7 @@ export default function TrendsPage() {
             <span key={p.id} className="flex items-center gap-1.5 font-medium">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: SLOT_META[p.slot].color }}
+                style={{ background: playerColor(chart.profiles, p.id) }}
               />
               {p.nickname}
             </span>
