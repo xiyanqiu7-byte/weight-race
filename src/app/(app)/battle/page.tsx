@@ -170,12 +170,9 @@ export default function BattlePage() {
             view.others.length === 0 ? 2 : view.total;
           const avatarSize = avatarSizeForCount(rowCount);
           const avatarGap = avatarGapForCount(rowCount);
-          const needScroll = rowCount > 6;
           return (
             <div
-              className={`relative flex flex-nowrap items-end justify-center px-1 ${
-                needScroll ? "overflow-x-auto" : ""
-              }`}
+              className="relative flex flex-nowrap items-end justify-center px-1 touch-pan-y"
               style={{
                 gap: avatarGap,
                 // buff / 挑衅角标 + breathe 上移，需要顶部留白

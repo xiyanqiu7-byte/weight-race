@@ -25,9 +25,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [session, bundle, loading, error, router]);
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col">
       <ModeBanner />
-      <div className="flex items-center justify-between px-5 py-4">
+      <div className="flex shrink-0 items-center justify-between px-5 py-4">
         <div className="text-[15px] font-bold tracking-tight">减脂对战</div>
         <Link
           href="/settings"
@@ -36,8 +36,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           设置
         </Link>
       </div>
-      <div className="flex flex-1 flex-col overflow-auto">{children}</div>
-      <TabBar />
+      {/* min-h-0 让 flex 子项真正成为滚动容器，避免手机第一次竖滑失灵 */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        {children}
+      </div>
+      <div className="shrink-0">
+        <TabBar />
+      </div>
     </div>
   );
 }

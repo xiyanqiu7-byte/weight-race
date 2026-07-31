@@ -14,7 +14,7 @@ export function TabBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="safe-bottom sticky bottom-0 z-40 px-4 pb-2 pt-1">
+    <nav className="safe-bottom z-40 border-t border-line/40 bg-[var(--bg)] px-4 pb-2 pt-1">
       <ul className="card-soft grid grid-cols-4 gap-1 p-2">
         {TABS.map((tab) => {
           const active = pathname.startsWith(tab.href);

@@ -37,6 +37,7 @@
 html,
 body {
   height: 100%;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -208,4 +209,6 @@ select {
   flex-direction: column;
   position: relative;
   background: var(--bg);
+  /* 让页面本身滚动，减少嵌套滚动抢手势 */
+  overscroll-behavior-y: none;
 }
