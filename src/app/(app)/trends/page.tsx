@@ -5,6 +5,17 @@ import { useCouple } from "@/hooks/useCouple";
 import { playerColor } from "@/lib/player-color";
 import { formatWeight, kgToDisplay } from "@/lib/units";
 
+type CalendarCell =
+  | { kind: "empty"; key: string }
+  | {
+      kind: "day";
+      d: number;
+      key: string;
+      weighed: boolean;
+      trained: boolean;
+      pooped: boolean;
+    };
+
 export default function TrendsPage() {
   const { session, bundle, unit } = useCouple();
 
@@ -47,22 +58,23 @@ export default function TrendsPage() {
   }, [bundle, unit]);
 
   const calendar = useMemo(() => {
-    if (!session || !bundle) return { cells: [], title: "" };
+    if (!session || !bundle) return { cells: [] as CalendarCell[], title: "" };
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells = [];
+    // 周一为一周起点，按真实星期错位
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const leadEmpty = (firstWeekday + 6) % 7;
+
+    const cells: CalendarCell[] = [];
+    for (let i = 0; i < leadEmpty; i++) {
+      cells.push({ kind: "empty", key: `pad-start-${i}` });
+    }
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const weighed = bundle.weighIns.some(
         (w) => w.profile_id === session.profileId && w.logged_on === key,
-      );
-      const indulged = bundle.mealLogs.some(
-        (m) =>
-          m.profile_id === session.profileId &&
-          m.logged_on === key &&
-          !m.healthy,
       );
       const trained = bundle.workouts.some(
         (w) =>
@@ -76,7 +88,10 @@ export default function TrendsPage() {
           b.logged_on === key &&
           b.happened,
       );
-      cells.push({ d, key, weighed, indulged, trained, pooped });
+      cells.push({ kind: "day", d, key, weighed, trained, pooped });
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push({ kind: "empty", key: `pad-end-${cells.length}` });
     }
     return {
       cells,
@@ -236,34 +251,48 @@ export default function TrendsPage() {
           <h2 className="text-[15px] font-bold">训练日历</h2>
           <span className="text-[12px] text-white/55">{calendar.title}</span>
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {calendar.cells.map((c) => (
+        <div className="mb-2 grid grid-cols-7 gap-1.5">
+          {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
             <div
-              key={c.key}
-              className={`relative flex aspect-square items-center justify-center rounded-full text-[11px] font-semibold ${
-                c.weighed ? "bg-moss text-ink" : "text-white/45"
-              }`}
-              title={c.key}
+              key={w}
+              className="text-center text-[10px] font-semibold text-white/40"
             >
-              {c.d}
-              {c.trained && (
-                <span
-                  className="absolute -right-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
-                  aria-label="有训练"
-                >
-                  💪
-                </span>
-              )}
-              {c.pooped && (
-                <span
-                  className="absolute -bottom-1 -left-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
-                  aria-label="有排便"
-                >
-                  💩
-                </span>
-              )}
+              {w}
             </div>
           ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {calendar.cells.map((c) =>
+            c.kind === "empty" ? (
+              <div key={c.key} className="aspect-square" aria-hidden />
+            ) : (
+              <div
+                key={c.key}
+                className={`relative flex aspect-square items-center justify-center rounded-full text-[11px] font-semibold ${
+                  c.weighed ? "bg-moss text-ink" : "text-white/45"
+                }`}
+                title={c.key}
+              >
+                {c.d}
+                {c.trained && (
+                  <span
+                    className="absolute -right-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    aria-label="有训练"
+                  >
+                    💪
+                  </span>
+                )}
+                {c.pooped && (
+                  <span
+                    className="absolute -bottom-1 -left-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    aria-label="有排便"
+                  >
+                    💩
+                  </span>
+                )}
+              </div>
+            ),
+          )}
         </div>
         <p className="mt-3 text-[11px] text-white/45">
           黄底 = 已称重 · 右上 💪 = 有训练 · 左下 💩 = 顺畅出货
