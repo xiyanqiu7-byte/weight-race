@@ -43,7 +43,6 @@ export default function BattlePage() {
       }))
       .sort((a, b) => b.lost - a.lost);
 
-    const meLost = profileLost(me, bundle.weighIns);
     const leader = ranked[0];
     const myRank = ranked.findIndex((r) => r.profile.id === me.id) + 1;
 
@@ -59,19 +58,9 @@ export default function BattlePage() {
       me,
       others,
       ranked,
-      meLost,
-      meCurrent: latestWeight(bundle.weighIns, me.id),
-      meGoalWeight:
-        me.start_weight_kg != null ? me.start_weight_kg - me.goal_kg : null,
-      meProgress: progressRatio(
-        me.start_weight_kg,
-        latestWeight(bundle.weighIns, me.id),
-        me.goal_kg,
-      ),
       meBuff: hasBuff(bundle.workouts, me.id, today),
       meDebuff: hasDebuff(bundle.mealLogs, me.id, today),
       days: daysSince(me.start_date),
-      badges: milestonesReached(meLost),
       pokeEmojiBySender,
       myRank,
       leaderName: leader?.profile.nickname ?? me.nickname,
@@ -227,50 +216,6 @@ export default function BattlePage() {
         })()}
       </section>
 
-      {view.ranked.map(({ profile, lost, current }) => {
-        const goalWeight =
-          profile.start_weight_kg != null
-            ? profile.start_weight_kg - profile.goal_kg
-            : null;
-        return (
-          <ProgressBar
-            key={profile.id}
-            value={progressRatio(
-              profile.start_weight_kg,
-              current,
-              profile.goal_kg,
-            )}
-            color={playerColor(bundle!.profiles, profile.id)}
-            label={`${profile.nickname}${profile.id === view.me.id ? "（我）" : ""} 的减重计划`}
-            sublabel={`已减 ${formatWeight(lost, unit)} / 目标 ${profile.goal_kg} kg`}
-            currentLabel={
-              current != null ? formatWeight(current, unit) : undefined
-            }
-            startLabel={
-              profile.start_weight_kg != null
-                ? formatWeight(profile.start_weight_kg, unit)
-                : "起点"
-            }
-            goalLabel={
-              goalWeight != null ? formatWeight(goalWeight, unit) : "目标"
-            }
-          />
-        );
-      })}
-
-      {view.badges.length > 0 && (
-        <section className="flex flex-wrap gap-2 px-1">
-          {view.badges.map((b) => (
-            <span
-              key={b}
-              className="rounded-full bg-moss px-3 py-1.5 text-[11px] font-semibold text-ink"
-            >
-              达成 {b} kg
-            </span>
-          ))}
-        </section>
-      )}
-
       <div
         className="poke-flip"
         data-open={pokeOpen ? "true" : "false"}
@@ -321,6 +266,52 @@ export default function BattlePage() {
           </div>
         </div>
       </div>
+
+      {view.ranked.map(({ profile, lost, current }) => {
+        const goalWeight =
+          profile.start_weight_kg != null
+            ? profile.start_weight_kg - profile.goal_kg
+            : null;
+        const badges = milestonesReached(lost);
+        return (
+          <div key={profile.id} className="flex flex-col gap-2">
+            <ProgressBar
+              value={progressRatio(
+                profile.start_weight_kg,
+                current,
+                profile.goal_kg,
+              )}
+              color={playerColor(bundle!.profiles, profile.id)}
+              label={`${profile.nickname}${profile.id === view.me.id ? "（我）" : ""} 的减重计划`}
+              sublabel={`已减 ${formatWeight(lost, unit)} / 目标 ${profile.goal_kg} kg`}
+              currentLabel={
+                current != null ? formatWeight(current, unit) : undefined
+              }
+              startLabel={
+                profile.start_weight_kg != null
+                  ? formatWeight(profile.start_weight_kg, unit)
+                  : "起点"
+              }
+              goalLabel={
+                goalWeight != null ? formatWeight(goalWeight, unit) : "目标"
+              }
+            />
+            {badges.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-1">
+                {badges.map((b) => (
+                  <span
+                    key={b}
+                    className="rounded-full bg-moss px-3 py-1.5 text-[11px] font-semibold text-ink"
+                  >
+                    达成 {b} kg
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
       {toast && (
         <div className="fixed bottom-28 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-[12px] font-medium text-white shadow-lg">
           {toast}
