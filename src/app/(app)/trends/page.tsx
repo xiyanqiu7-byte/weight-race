@@ -344,7 +344,7 @@ export default function TrendsPage() {
                 {c.d}
                 {c.allHealthy && (
                   <span
-                    className="absolute -left-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    className="absolute left-[2px] top-[2px] flex h-3 w-3 items-center justify-center rounded-full bg-white text-[7px] leading-none shadow-sm"
                     aria-label="三餐都健康"
                   >
                     ✅
@@ -352,7 +352,7 @@ export default function TrendsPage() {
                 )}
                 {c.trained && (
                   <span
-                    className="absolute -right-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    className="absolute right-[2px] top-[2px] flex h-3 w-3 items-center justify-center rounded-full bg-white text-[7px] leading-none shadow-sm"
                     aria-label="有训练"
                   >
                     💪
@@ -360,7 +360,7 @@ export default function TrendsPage() {
                 )}
                 {c.pooped && (
                   <span
-                    className="absolute -bottom-1 -left-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    className="absolute bottom-[2px] left-[2px] flex h-3 w-3 items-center justify-center rounded-full bg-white text-[7px] leading-none shadow-sm"
                     aria-label="有排便"
                   >
                     💩
