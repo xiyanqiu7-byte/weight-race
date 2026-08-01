@@ -38,7 +38,7 @@ export function PixelAvatar({
           <div className="absolute -top-2 left-1/2 z-10 flex -translate-x-1/2 gap-1 pop-in">
             {debuff && (
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] shadow-sm">
-                🐔
+                🍗
               </span>
             )}
             {buff && (

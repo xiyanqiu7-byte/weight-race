@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useCouple } from "@/hooks/useCouple";
 import { playerColor } from "@/lib/player-color";
+import { hasHealthyMainMeals } from "@/lib/stats";
 import { formatWeight, kgToDisplay } from "@/lib/units";
 
 type CalendarCell =
@@ -14,6 +15,7 @@ type CalendarCell =
       weighed: boolean;
       trained: boolean;
       pooped: boolean;
+      allHealthy: boolean;
     };
 
 function shiftMonth(year: number, month: number, delta: number) {
@@ -101,7 +103,20 @@ export default function TrendsPage() {
           b.logged_on === key &&
           b.happened,
       );
-      cells.push({ kind: "day", d, key, weighed, trained, pooped });
+      const allHealthy = hasHealthyMainMeals(
+        bundle.mealLogs,
+        session.profileId,
+        key,
+      );
+      cells.push({
+        kind: "day",
+        d,
+        key,
+        weighed,
+        trained,
+        pooped,
+        allHealthy,
+      });
     }
     while (cells.length % 7 !== 0) {
       cells.push({ kind: "empty", key: `pad-end-${cells.length}` });
@@ -327,6 +342,14 @@ export default function TrendsPage() {
                 title={c.key}
               >
                 {c.d}
+                {c.allHealthy && (
+                  <span
+                    className="absolute -left-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
+                    aria-label="三餐都健康"
+                  >
+                    ✅
+                  </span>
+                )}
                 {c.trained && (
                   <span
                     className="absolute -right-1 -top-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[8px] leading-none shadow-sm"
@@ -348,7 +371,8 @@ export default function TrendsPage() {
           )}
         </div>
         <p className="mt-3 text-[11px] text-white/45">
-          黄底 = 已称重 · 右上 💪 = 有训练 · 左下 💩 = 顺畅出货
+          黄底 = 已称重 · 左上 ✅ = 早中晚都健康 · 右上 💪 = 有训练 · 左下 💩 =
+          顺畅出货
         </p>
       </section>
 

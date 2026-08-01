@@ -82,6 +82,19 @@ export function hasDebuff(
   return mealsOnDate(meals, profileId, date).some((m) => !m.healthy);
 }
 
+/** 早中晚都记了且都健康（加餐不计入） */
+export function hasHealthyMainMeals(
+  meals: MealLog[],
+  profileId: string,
+  date: string,
+): boolean {
+  const day = mealsOnDate(meals, profileId, date);
+  return (["breakfast", "lunch", "dinner"] as const).every((meal) => {
+    const log = day.find((m) => m.meal === meal);
+    return log != null && log.healthy;
+  });
+}
+
 export function hasBuff(
   workouts: Workout[],
   profileId: string,
