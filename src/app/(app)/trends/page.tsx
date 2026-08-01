@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useCouple } from "@/hooks/useCouple";
 import { playerColor } from "@/lib/player-color";
 import { formatWeight, kgToDisplay } from "@/lib/units";
@@ -16,8 +16,15 @@ type CalendarCell =
       pooped: boolean;
     };
 
+function shiftMonth(year: number, month: number, delta: number) {
+  const d = new Date(year, month + delta, 1);
+  return { year: d.getFullYear(), month: d.getMonth() };
+}
+
 export default function TrendsPage() {
   const { session, bundle, unit } = useCouple();
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
   const chart = useMemo(() => {
     if (!bundle) return null;
@@ -58,10 +65,16 @@ export default function TrendsPage() {
   }, [bundle, unit]);
 
   const calendar = useMemo(() => {
-    if (!session || !bundle) return { cells: [] as CalendarCell[], title: "" };
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    if (!session || !bundle) {
+      return {
+        cells: [] as CalendarCell[],
+        title: "",
+        canPrev: false,
+        canNext: false,
+      };
+    }
+    const year = calYear;
+    const month = calMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     // 周一为一周起点，按真实星期错位
     const firstWeekday = new Date(year, month, 1).getDay();
@@ -93,11 +106,21 @@ export default function TrendsPage() {
     while (cells.length % 7 !== 0) {
       cells.push({ kind: "empty", key: `pad-end-${cells.length}` });
     }
+
+    const today = new Date();
+    const thisY = today.getFullYear();
+    const thisM = today.getMonth();
+    const earliest = shiftMonth(thisY, thisM, -24);
+
     return {
       cells,
       title: `${year}年${month + 1}月`,
+      canPrev:
+        year > earliest.year ||
+        (year === earliest.year && month > earliest.month),
+      canNext: year < thisY || (year === thisY && month < thisM),
     };
-  }, [session, bundle]);
+  }, [session, bundle, calYear, calMonth]);
 
   const stats = useMemo(() => {
     if (!session || !bundle) return null;
@@ -247,9 +270,39 @@ export default function TrendsPage() {
       </section>
 
       <section className="card-dark p-4">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-[15px] font-bold">训练日历</h2>
-          <span className="text-[12px] text-white/55">{calendar.title}</span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="上个月"
+              disabled={!calendar.canPrev}
+              onClick={() => {
+                const next = shiftMonth(calYear, calMonth, -1);
+                setCalYear(next.year);
+                setCalMonth(next.month);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[14px] text-white/70 transition enabled:hover:bg-white/10 enabled:active:scale-95 disabled:opacity-25"
+            >
+              ‹
+            </button>
+            <span className="min-w-[5.5rem] text-center text-[12px] font-semibold text-white/70">
+              {calendar.title}
+            </span>
+            <button
+              type="button"
+              aria-label="下个月"
+              disabled={!calendar.canNext}
+              onClick={() => {
+                const next = shiftMonth(calYear, calMonth, 1);
+                setCalYear(next.year);
+                setCalMonth(next.month);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[14px] text-white/70 transition enabled:hover:bg-white/10 enabled:active:scale-95 disabled:opacity-25"
+            >
+              ›
+            </button>
+          </div>
         </div>
         <div className="mb-2 grid grid-cols-7 gap-1.5">
           {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
